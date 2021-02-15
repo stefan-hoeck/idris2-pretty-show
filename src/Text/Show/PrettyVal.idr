@@ -1,17 +1,19 @@
 module Text.Show.PrettyVal
 
 import Data.List
+import Data.List1
 import Data.Vect
 import Text.Show.Value
 
 import Generics.Derive
-
-%hide Language.Reflection.TT.Name
+import System.Clock
+import System.File
 
 %language ElabReflection
 
-%default total
-
+public export
+PName : Type
+PName = Text.Show.Value.Name
 
 ||| A class for types that may be reified into a value.
 ||| Instances of this class may be derived automatically,
@@ -26,13 +28,13 @@ interface PrettyVal a where
 
 -- Displays an applied constructer in record syntax.
 -- This is called, if all arguments have user-defined names.
-rec : Name -> NP (K Value) ks -> NP (K String) ks -> Value
+rec : PName -> NP (K Value) ks -> NP (K String) ks -> Value
 rec con vs ns = Rec con (collapseNP $ hliftA2 named vs ns)
-  where named : Value -> String -> (Name,Value)
+  where named : Value -> String -> (PName,Value)
         named v name = (MkName name, v)
 
 -- Displays an applied constructer with unnamed arguments.
-other : Name -> NP (K Value) ks -> Value
+other : PName -> NP (K Value) ks -> Value
 other con = Con con . collapseNP
 
 -- Displays a single applied constructor
@@ -107,6 +109,10 @@ public export
 PrettyVal Bits64 where
   prettyVal = Natural . show
 
+public export
+PrettyVal Nat where
+  prettyVal = Natural . show
+
 mkNum :  (Ord a, Neg a, Num a, Show a)
       => (String -> Value) -> a -> Value
 mkNum c x = if x >= 0 then c (show x)
@@ -165,18 +171,70 @@ public export
 POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
   prettyVal (MkSOP nss) = Con "MkSOP" [prettyVal nss]
 
--- oneVal :: [(Name,Value)] -> Value
--- oneVal x =
---   case x of
---     [ ("",v) ]               -> v
---     fs | all (null . fst) fs -> Con "?" (map snd fs)
---        | otherwise           -> Rec "?" fs
--- 
--- 
--- instance PrettyVal Bool
--- instance PrettyVal Ordering
--- instance PrettyVal a => PrettyVal (Maybe a)
--- instance (PrettyVal a, PrettyVal b) => PrettyVal (Either a b)
--- 
--- instance PrettyVal Text where
---   prettyVal = String . Text.unpack
+%runElab derive "Bool" [PrettyVal]
+
+%runElab derive "Ordering" [PrettyVal]
+
+%runElab derive "Maybe" [PrettyVal]
+
+%runElab derive "Either" [PrettyVal]
+
+%runElab derive "List1" [PrettyVal]
+
+%runElab derive "Dec" [PrettyVal]
+
+%runElab derive "Prec" [PrettyVal]
+
+-- System
+
+%runElab derive "Mode" [PrettyVal]
+
+%runElab derive "FileError" [PrettyVal]
+
+%runElab derive "FileMode" [PrettyVal]
+
+%runElab derive "Permissions" [PrettyVal]
+
+%runElab derive "ClockType" [PrettyVal]
+
+-- Reflection
+
+%runElab derive "FC" [PrettyVal]
+
+%runElab derive "NameType" [PrettyVal]
+
+%runElab derive "Constant" [PrettyVal]
+
+%runElab derive "Namespace" [PrettyVal]
+
+%runElab derive "Language.Reflection.TT.Name" [PrettyVal]
+
+%runElab derive "Count" [PrettyVal]
+
+%runElab derive "PiInfo" [PrettyVal]
+
+%runElab derive "LazyReason" [PrettyVal]
+
+%runElab derive "TotalReq" [PrettyVal]
+
+%runElab derive "Visibility" [PrettyVal]
+
+%runElab derive "BindMode" [PrettyVal]
+
+%runElab derive "UseSide" [PrettyVal]
+
+%runElab derive "DotReason" [PrettyVal]
+
+%runElab derive "DataOpt" [PrettyVal]
+
+%runElab deriveMutual [ ("TTImp",        [PrettyVal])
+                      , ("IField",       [PrettyVal])
+                      , ("IFieldUpdate", [PrettyVal])
+                      , ("AltType",      [PrettyVal])
+                      , ("FnOpt",        [PrettyVal])
+                      , ("ITy",          [PrettyVal])
+                      , ("Data",         [PrettyVal])
+                      , ("Record",       [PrettyVal])
+                      , ("Clause",       [PrettyVal])
+                      , ("Decl",         [PrettyVal])
+                      ]
