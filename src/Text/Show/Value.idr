@@ -39,6 +39,18 @@ data Value = Con Name (List Value)
            | Chr String
            | Str String
 
+||| Displays an applied binary operator.
+||| If the same operator appears several times in a row,
+||| this is treated as a list of infix constructors.
+public export
+binOp : Name -> Value -> Value -> Value
+binOp op pvx pvy =
+   case pvy of
+        InfixCons pv1 pairs@((op2, pv2) :: xs) =>
+          if op2 == op then InfixCons pvx ((op,pvy) :: pairs)
+                       else InfixCons pvx [(op,pvy)]
+        _ => InfixCons pvx [(op,pvy)]
+
 ||| Hide constructors matching the given predicate.
 ||| If the hidden value is in a record, we also hide
 ||| the corresponding record field.

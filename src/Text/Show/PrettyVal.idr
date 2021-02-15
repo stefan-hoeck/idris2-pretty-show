@@ -8,6 +8,11 @@ import Generics.Derive
 
 %hide Language.Reflection.TT.Name
 
+%language ElabReflection
+
+%default total
+
+
 ||| A class for types that may be reified into a value.
 ||| Instances of this class may be derived automatically,
 ||| for datatypes that support `Generics`.
@@ -19,55 +24,64 @@ interface PrettyVal a where
 --          Generics
 --------------------------------------------------------------------------------
 
--- displays an applied binary operator
--- if the same operator appears severak timtes in a row,
--- this is treated as a list of infix constructors.
-binOp : (prf : NP (PrettyVal . f) [a,b]) => Name -> NP f [a,b] -> Value
-binOp op vs =
-  let [pvx,pvy] = hcmap (PrettyVal . f) prettyVal vs
-   in case pvy of
-           InfixCons pv1 pairs@((op2, pv2) :: xs) =>
-             if op2 == op then InfixCons pvx ((op,pvy) :: pairs)
-                          else InfixCons pvx [(op,pvy)]
-           _ => InfixCons pvx [(op,pvy)]
+-- Displays an applied constructer in record syntax.
+-- This is called, if all arguments have user-defined names.
+rec : Name -> NP (K Value) ks -> NP (K String) ks -> Value
+rec con vs ns = Rec con (collapseNP $ hliftA2 named vs ns)
+  where named : Value -> String -> (Name,Value)
+        named v name = (MkName name, v)
 
-rec : NP (PrettyVal . f) ks => Name -> NP f ks -> NP (K String) ks -> Value
-rec con args names =
-  let applied = hcliftA2 (PrettyVal . f) named names args
-   in Rec con (collapseNP applied)
-
-  where named : PrettyVal a => String -> a -> (Name,Value)
-        named name v = (MkName name,prettyVal v)
-
-other : NP (PrettyVal . f) ks => Name -> NP f ks -> Value
-other con args =
-  let argLst = collapseNP $ hcmap (PrettyVal . f) prettyVal args
-   in Con con argLst
+-- Displays an applied constructer with unnamed arguments.
+other : Name -> NP (K Value) ks -> Value
+other con = Con con . collapseNP
 
 -- Displays a single applied constructor
-valC : (prf : NP (PrettyVal . f) ks) => ConInfo ks -> NP f ks -> Value
+valC : NP (PrettyVal . f) ks => ConInfo ks -> NP f ks -> Value
 valC info args =
   let con   = MkName (wrapOperator info.conName)
       names = argNames info
-      val   = maybe (other con args) (rec con args) names
-   in case args of
+      vals  = hcmap (PrettyVal . f) prettyVal args
+      val   = maybe (other con vals) (rec con vals) names
+   in case vals of
         []    => Con con []
         [a,b] => if isOperator info.conName
-                    then binOp {prf} (MkName info.conName) [a,b]
+                    then binOp (MkName info.conName) a b
                     else val
         _     => val
 
--- ||| Generic show function.
--- |||
--- ||| This is still quite basic. It uses prefix notation for operators
--- ||| and data types with List constructors (`Nil` and `(::)`)
--- ||| are not yet displayed using list syntax ("[a,b,c]").
--- |||
--- ||| However, constructors with only named arguments are displayed
--- ||| in record syntax style.
--- public export
--- genShowPrec : Meta t code => POP Show code => Prec -> t -> String
--- genShowPrec p = showSOP p (metaFor t) . from
+prettySOP :  (all : POP (PrettyVal . f) kss)
+          => TypeInfo kss -> SOP f kss -> Value
+prettySOP {all = MkPOP _} (MkTypeInfo _ _ cons) =
+  collapseNS . hcliftA2 (NP $ PrettyVal . f) valC cons . unSOP
+
+||| Generic version of `prettyVal`.
+public export
+genPrettyVal : Meta t code => POP PrettyVal code => t -> Value
+genPrettyVal = prettySOP (metaFor t) . from
+
+--------------------------------------------------------------------------------
+--          Auto Deriving
+--------------------------------------------------------------------------------
+
+namespace Derive
+
+  ||| Creates a `Show` value from the passed functions.
+  public export %inline
+  mkPrettyVal : (prettyVal : a -> Value) -> PrettyVal a
+  mkPrettyVal = %runElab check (var $ singleCon "PrettyVal")
+
+  ||| Derives a `PrettyVal` implementation for the given data type
+  ||| and visibility.
+  export
+  PrettyValVis : Visibility -> DeriveUtil -> InterfaceImpl
+  PrettyValVis vis g = MkInterfaceImpl "PrettyVal" vis []
+                         `(mkPrettyVal genPrettyVal)
+                         (implementationType `(PrettyVal) g)
+
+  ||| Alias for `PrettyValVis Public`.
+  export
+  PrettyVal : DeriveUtil -> InterfaceImpl
+  PrettyVal = PrettyValVis Public
 
 --------------------------------------------------------------------------------
 --          Implementations
