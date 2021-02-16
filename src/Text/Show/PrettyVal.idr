@@ -11,7 +11,7 @@ import System.File
 
 %language ElabReflection
 
-public export
+public export total
 PName : Type
 PName = Text.Show.Value.Name
 
@@ -57,7 +57,7 @@ prettySOP {all = MkPOP _} (MkTypeInfo _ _ cons) =
   collapseNS . hcliftA2 (NP $ PrettyVal . f) valC cons . unSOP
 
 ||| Generic version of `prettyVal`.
-public export
+public export total
 genPrettyVal : Meta t code => POP PrettyVal code => t -> Value
 genPrettyVal = prettySOP (metaFor t) . from
 
@@ -68,7 +68,7 @@ genPrettyVal = prettySOP (metaFor t) . from
 namespace Derive
 
   ||| Creates a `Show` value from the passed functions.
-  public export %inline
+  public export total %inline
   mkPrettyVal : (prettyVal : a -> Value) -> PrettyVal a
   mkPrettyVal = %runElab check (var $ singleCon "PrettyVal")
 

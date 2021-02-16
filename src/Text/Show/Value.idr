@@ -2,6 +2,7 @@ module Text.Show.Value
 
 import Data.List1
 import Generics.Derive
+import Text.PrettyPrint.Prettyprinter
 
 %hide Language.Reflection.TT.Name
 
@@ -11,12 +12,18 @@ import Generics.Derive
 
 ||| A name.
 public export
-data Name = MkName String
+record Name where
+  constructor MkName
+  unName : String
 
-%runElab derive "Text.Show.Value.Name" [Generic,Meta,Show,Eq,Ord]
+%runElab derive "Text.Show.Value.Name" [Generic,Meta,Show,Eq,Ord,Semigroup]
 
 public export
 FromString Name where fromString = MkName
+
+public export
+Pretty Name where
+  pretty = pretty . unName
 
 ||| Generic Idris values.
 ||| The `String` in the literals is the text for the literals "as is".
