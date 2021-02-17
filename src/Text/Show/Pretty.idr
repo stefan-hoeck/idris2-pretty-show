@@ -57,6 +57,8 @@ toDoc val =
     atom : Value -> Doc ann
     atom v = if isAtom v then toDoc v else parens (toDoc v)
 
+    -- the explicit list mappings like `atoms`, `docs`, and
+    -- `fields` are necessary to convince the totality checker.
     atoms : List Value -> List (Doc ann)
     atoms []        = []
     atoms (x :: xs) = atom x :: atoms xs
