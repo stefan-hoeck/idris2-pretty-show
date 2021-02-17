@@ -6,6 +6,8 @@ import Text.PrettyPrint.Prettyprinter
 import public Text.Show.Value
 import public Text.Show.PrettyVal
 
+%default total
+
 --------------------------------------------------------------------------------
 --          Utilities
 --------------------------------------------------------------------------------
@@ -35,42 +37,51 @@ block = blockWith sep
 hangAfter : Doc ann -> Int -> Doc ann -> Doc ann
 hangAfter pre n po = sep [pre, nest n po]
 
-mutual
-  toDoc : Value -> Doc ann
-  toDoc (Con c vs) = ppCon c vs
+toDoc : Value -> Doc ann
+toDoc val =
+  case val of
+    Con (MkName "") vs => sep $ atoms vs
+    Con (MkName c)  vs => hangAfter (pretty c) 2 (sep $ atoms vs)
+    InfixCons v1 cvs   => hangsep (infx v1 cvs)
+    Rec c fs           => hangAfter (pretty c) 2 $ block '{' '}' (fields fs)
+    Lst vs             => block '[' ']' (docs vs)
+    Tuple vs           => block '(' ')' (docs vs)
+    Neg v              => pretty '-' <++> atom v
+    Natural x          => pretty x
+    Dbl x              => pretty x
+    Chr x              => pretty x
+    Str x              => pretty x
+    _                  => neutral
 
-  toDoc (InfixCons v1 cvs) = hang_sep (go v1 cvs)
-    where
-    go : Value -> List (Name,Value) -> List (Doc ann)
-    go v []             = [ppInfixAtom v]
-    go v ((n,v2)::cvs') = (ppInfixAtom v <++> pretty n) :: go v2 cvs'
-    
-    hang_sep : List (Doc ann) -> Doc ann
-    hang_sep []      = neutral
-    hang_sep (x::xs) = hangAfter x 2 (sep xs)
+  where
+    atom : Value -> Doc ann
+    atom v = if isAtom v then toDoc v else parens (toDoc v)
 
-  toDoc (Rec c fs) = hangAfter (pretty c) 2 $ block '{' '}' (map ppField fs)
-    where ppField : (Name,Value) -> Doc ann
-          ppField (x,v) = hangAfter (pretty x <++> pretty '=')
-                                    2
-                                    (toDoc v)
-  toDoc (Lst vs)    = block '[' ']' (map toDoc vs)
-  toDoc (Tuple vs)  = block '(' ')' (map toDoc vs)
-  toDoc (Neg v)     = pretty '-' <++> ppAtom v
-  toDoc (Natural x) = pretty x
-  toDoc (Dbl x)     = pretty x
-  toDoc (Chr x)     = pretty x
-  toDoc (Str x)     = pretty x
+    atoms : List Value -> List (Doc ann)
+    atoms []        = []
+    atoms (x :: xs) = atom x :: atoms xs
 
-  ppCon : Name -> List Value -> Doc ann
-  ppCon (MkName "") vs = sep (map ppAtom vs)
-  ppCon (MkName c)  vs = hangAfter (pretty c) 2 (sep $ map ppAtom vs)
+    infixAtom : Value -> Doc ann
+    infixAtom v = if isInfixAtom v then toDoc v else parens (toDoc v)
 
-  ppAtom : Value -> Doc ann
-  ppAtom v = if isAtom v then toDoc v else parens (toDoc v)
+    field : (Name,Value) -> Doc ann
+    field (x,v) = hangAfter (pretty x <++> pretty '=') 2 (toDoc v)
 
-  ppInfixAtom : Value -> Doc ann
-  ppInfixAtom v = if isInfixAtom v then toDoc v else parens (toDoc v)
+    fields : List (Name,Value) -> List (Doc ann)
+    fields []        = []
+    fields (p :: ps) = field p :: fields ps
+
+    docs : List Value -> List (Doc ann)
+    docs []        = []
+    docs (x :: xs) = toDoc x :: docs xs
+
+    infx : Value -> List (Name,Value) -> List (Doc ann)
+    infx v []             = [infixAtom v]
+    infx v ((n,v2)::cvs') = (infixAtom v <++> pretty n) :: infx v2 cvs'
+
+    hangsep : List (Doc ann) -> Doc ann
+    hangsep []      = neutral
+    hangsep (x::xs) = hangAfter x 2 (sep xs)
 
 ||| Pretty print a generic value. Our intention is that the result is
 ||| equivalent to the 'Show' instance for the original value, except possibly

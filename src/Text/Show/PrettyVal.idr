@@ -74,14 +74,14 @@ namespace Derive
 
   ||| Derives a `PrettyVal` implementation for the given data type
   ||| and visibility.
-  export
+  export total
   PrettyValVis : Visibility -> DeriveUtil -> InterfaceImpl
   PrettyValVis vis g = MkInterfaceImpl "PrettyVal" vis []
                          `(mkPrettyVal genPrettyVal)
                          (implementationType `(PrettyVal) g)
 
   ||| Alias for `PrettyValVis Public`.
-  export
+  export total
   PrettyVal : DeriveUtil -> InterfaceImpl
   PrettyVal = PrettyValVis Public
 
