@@ -2,6 +2,8 @@ module Text.Show.Value
 
 import Data.List1
 import Generics.Derive
+import Text.Lexer
+import Text.Parser
 import Text.PrettyPrint.Prettyprinter
 
 %hide Language.Reflection.TT.Name
@@ -125,8 +127,178 @@ hideCon collapse hidden = toVal . delMaybe
            Str _     => Just val
 
 --------------------------------------------------------------------------------
---          Parsing
+--          Tokenizer
 --------------------------------------------------------------------------------
+
+-- taken from the actual Idris2 tokenizer
+data Flavour = Capitalised | Normal
+
+isIdentStart : Flavour -> Char -> Bool
+isIdentStart _           '_' = True
+isIdentStart Capitalised  x  = isUpper x || x > chr 160
+isIdentStart _            x  = isAlpha x || x > chr 160
+
+isIdentTrailing : Char -> Bool
+isIdentTrailing '\'' = True
+isIdentTrailing '_'  = True
+isIdentTrailing x    = isAlphaNum x || x > chr 160
+
+ident : Flavour -> Lexer
+ident flavour =   (pred $ isIdentStart flavour)
+              <+> (many $ pred isIdentTrailing )
+
+identNormal : Lexer
+identNormal = ident Normal
+
+namespaceIdent : Lexer
+namespaceIdent = ident Capitalised <+> many (is '.' <+> ident Capitalised <+> expect (is '.'))
+
+namespacedIdent : Lexer
+namespacedIdent = namespaceIdent <+> opt (is '.' <+> identNormal)
+
+data ShowToken = StringLit String
+               | NatLit    String
+               | DblLit    String
+               | CharLit   String
+               | Ident     String
+               | Symbol    String
+               | Op        String
+               | Space     String
+
+binDigit : Lexer
+binDigit = pred (\c => c == '0' || c == '1')
+
+binDigits : Lexer
+binDigits = some binDigit
+
+binLit : Lexer
+binLit = exact "0b" <+> binDigits
+
+octLit : Lexer
+octLit = exact "0o" <+> octDigits
+
+holeIdent : Lexer
+holeIdent = is '?' <+> identNormal
+
+dotIdent : Lexer
+dotIdent = is '.' <+> identNormal
+
+pragma : Lexer
+pragma = is '%' <+> identNormal
+
+isOpChar : Char -> Bool
+isOpChar c = c `elem` (unpack ":!#$%&*+./<=>?@\\^|-~")
+
+op : Lexer
+op = some (pred isOpChar)
+
+isSymbol : Char -> Bool
+isSymbol c = c `elem` (unpack "()[]{},")
+
+parseOp : String -> ShowToken
+parseOp "=" = Symbol "="
+parseOp s   = Op s
+
+anyIdent : Lexer
+anyIdent =  choice {t = List} [ namespacedIdent
+                              , identNormal
+                              , dotIdent
+                              , holeIdent
+                              , pragma
+                              ]
+
+doubleLit : Lexer
+doubleLit = digits <+> is '.' <+> digits <+> opt
+             (is 'e' <+> opt (is '-' <|> is '+') <+> digits)
+
+tokens : TokenMap ShowToken
+tokens = [ (digits <|> binLit <|> octLit <|> hexLit, NatLit)
+         , (stringLit, StringLit)
+         , (charLit, CharLit)
+         , (doubleLit, DblLit)
+         , (anyIdent, Ident)
+         , (op, parseOp)
+         , (pred isSymbol, Symbol)
+         , (spaces, Space)
+         ]
+
+lex : String -> Either (Int,Int,String) (List ShowToken)
+lex str = case lex tokens str of
+               (ts, (_, _, "")) => Right . filter notSpace $ map tok ts
+               (_, t)           => Left t
+  where notSpace : ShowToken -> Bool
+        notSpace (Space _) = False
+        notSpace _         = True
+
+--------------------------------------------------------------------------------
+--          Parser
+--------------------------------------------------------------------------------
+
+Rule : Type -> Type
+Rule = Grammar ShowToken True
+
+EmptyRule : Type -> Type
+EmptyRule = Grammar ShowToken False
+
+constant : Rule Value
+constant = terminal "Expected constant"
+                     \case CharLit c    => Just $ Chr c
+                           DblLit d     => Just $ Dbl d
+                           StringLit s  => Just $ Str s
+                           NatLit s     => Just $ Natural s
+                           _            => Nothing
+
+identRule : Rule Name
+identRule = terminal "Expected identifier"
+                     \case Ident s => Just $ MkName s
+                           _       => Nothing
+
+operator : Rule Name
+operator = terminal "Expected operator"
+                    \case Op s => Just $ MkName s
+                          _    => Nothing
+
+symbol : String -> Rule ()
+symbol s = terminal ("Expected " ++ s)
+                    \case Symbol s2 => if s == s2 then Just ()
+                                                  else Nothing
+                          _         => Nothing
+
+comma : Rule ()
+comma = symbol ","
+
+equals : Rule ()
+equals = symbol "="
+
+parens : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
+parens = between (symbol "(") (symbol ")")
+
+brackets : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
+brackets = between (symbol "[") (symbol "]")
+
+braces : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
+braces = between (symbol "{") (symbol "}")
+
+identOrOp : Rule Name
+identOrOp = identRule <|> parens operator
+
+mutual
+  value : Rule Value
+
+  applied : Rule Value
+  applied = constant <|> tuple <|> parens value
+
+  negated : Rule Value
+  negated = symbol "-" *> map Neg applied
+
+  tuple : Rule Value
+  tuple = Tuple <$> parens (sepBy comma value)
+
+  list : Rule Value
+  list = Lst <$> brackets (sepBy comma value)
+
+  con : Rule Value
+  con = [| Con identOrOp (many applied) |]
 
 export
 parseValue : String -> Maybe Value
