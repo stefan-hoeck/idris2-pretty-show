@@ -215,7 +215,7 @@ doubleLit = digits <+> is '.' <+> digits <+> opt
              (is 'e' <+> opt (is '-' <|> is '+') <+> digits)
 
 tokens : TokenMap ShowToken
-tokens = [ (digits <|> binLit <|> octLit <|> hexLit, NatLit)
+tokens = [ (binLit <|> octLit <|> hexLit <|> digits, NatLit)
          , (stringLit, StringLit)
          , (charLit, CharLit)
          , (doubleLit, DblLit)
