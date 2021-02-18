@@ -39,7 +39,7 @@ Pretty Name where
 public export
 data Value = Con Name (List Value)
            | InfixCons Value (List (Name,Value))
-           | Rec Name (List (Name,Value) )
+           | Rec Name (List (Name,Value))
            | Tuple (List Value)
            | Lst (List Value)
            | Neg Value
@@ -156,6 +156,7 @@ namespaceIdent = ident Capitalised <+> many (is '.' <+> ident Capitalised <+> ex
 namespacedIdent : Lexer
 namespacedIdent = namespaceIdent <+> opt (is '.' <+> identNormal)
 
+public export
 data ShowToken = StringLit String
                | NatLit    String
                | DblLit    String
@@ -222,10 +223,14 @@ tokens = [ (digits <|> binLit <|> octLit <|> hexLit, NatLit)
          , (spaces, Space)
          ]
 
-lex : String -> Either (Int,Int,String) (List ShowToken)
+public export
+data Err = LexErr Int Int String
+         | ParseErr String (List ShowToken)
+
+lex : String -> Either Err (List ShowToken)
 lex str = case lex tokens str of
                (ts, (_, _, "")) => Right . filter notSpace $ map tok ts
-               (_, t)           => Left t
+               (_, (a,b,c))     => Left $ LexErr a b c
   where notSpace : ShowToken -> Bool
         notSpace (Space _) = False
         notSpace _         = True
@@ -283,22 +288,61 @@ identOrOp : Rule Name
 identOrOp = identRule <|> parens operator
 
 mutual
+  covering
   value : Rule Value
+  value = constant <|> negated <|> list <|> con <|> rec <|> tuple <|> infx
 
+  covering
   applied : Rule Value
-  applied = constant <|> tuple <|> parens value
+  applied =   constant 
+          <|> negated
+          <|> list
+          <|> parens value
+          <|> tuple
 
+  covering
   negated : Rule Value
   negated = symbol "-" *> map Neg applied
 
+  covering
   tuple : Rule Value
   tuple = Tuple <$> parens (sepBy comma value)
 
+  covering
   list : Rule Value
   list = Lst <$> brackets (sepBy comma value)
 
+  covering
+  pair : Rule (Name,Value)
+  pair = [| (,) identOrOp (equals *> value) |]
+
+  covering
+  rec : Rule Value
+  rec = [| Rec identOrOp (braces $ sepBy comma pair) |]
+  
+  covering
   con : Rule Value
   con = [| Con identOrOp (many applied) |]
 
+  covering
+  infx : Rule Value
+  infx = uncurry InfixCons <$> go
+    where go : Rule (Value,List (Name,Value))
+          go = do v    <- applied
+                  op   <- operator
+                  map (\(v2,ps) => (v,(op,v2) :: ps)) go <|>
+                  map (\v2 => (v, [(op,v2)])) applied
+
+export
+parseValueE : String -> Either Err Value
+parseValueE str = lex str >>= doParse
+  where doParse : List ShowToken -> Either Err Value
+        doParse ts =
+          case parse value ts of
+               Left (Error str ts) => Left $ ParseErr str ts
+               Right (v,[])        => Right v
+               Right (_,ts)        => Left $ ParseErr "Expected end of input" ts
+
 export
 parseValue : String -> Maybe Value
+parseValue = either (const Nothing) Just . parseValueE
