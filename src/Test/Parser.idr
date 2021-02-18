@@ -26,7 +26,6 @@ run f = concatMap run'
                        (\s => MkResult [] [(t,s)])
                        (f t)
 
-
 --------------------------------------------------------------------------------
 --          ANSI Colorings and Reporting
 --------------------------------------------------------------------------------
@@ -66,7 +65,8 @@ testLex s ps = do putStrLn ("Lexing " ++ s)
                                             else Just $ show res
 
 nats : List (String,List ShowToken)
-nats = map (\s => (s, [NatLit s])) ["0","123","0xabc123","0b11011","0o77653"]
+nats = map (\s => (s, [NatLit s]))
+           ["0","123","0xabc123","0b11011","0o77653", "0XAFC123"]
 
 export
 lexTest : IO ()
