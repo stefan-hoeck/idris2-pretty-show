@@ -91,7 +91,7 @@ namespace Derive
 
 public export
 PrettyVal () where
-  prettyVal _ = Con "()" []
+  prettyVal _ = Tuple []
 
 public export
 PrettyVal Bits8 where
