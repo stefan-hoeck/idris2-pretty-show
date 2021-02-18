@@ -166,6 +166,8 @@ data ShowToken = StringLit String
                | Op        String
                | Space     String
 
+%runElab derive "ShowToken" [Generic,Meta,Show,Eq]
+
 binDigit : Lexer
 binDigit = pred (\c => c == '0' || c == '1')
 
@@ -227,6 +229,9 @@ public export
 data Err = LexErr Int Int String
          | ParseErr String (List ShowToken)
 
+%runElab derive "Err" [Generic,Meta,Show,Eq]
+
+export
 lex : String -> Either Err (List ShowToken)
 lex str = case lex tokens str of
                (ts, (_, _, "")) => Right . filter notSpace $ map tok ts

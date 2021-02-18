@@ -1,0 +1,10 @@
+package test
+
+executable = runTest
+
+main = Test.Main
+
+sourcedir  = "src"
+depends    = base, contrib, elab-util, sop
+
+modules = Test.Parser
