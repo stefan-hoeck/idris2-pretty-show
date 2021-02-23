@@ -170,8 +170,25 @@ doubleCons = do (ps,v)  <- prims
                      , Con (MkName ident) [v,sc]
                      )
 
+recs : List (String,Value)
+recs = do (ps,p)  <- take 2 prims
+          ident1  <- take 2 identOrOps
+          ident2  <- take 2 identOrOps
+          ident3  <- take 2 identOrOps
+          (cs,sc) <- take 2 singleCons
+          pure  ( concat {t = List} [ ident1, " { "
+                                    , ident2, " = ", ps, ", "
+                                    , ident3, " = ", cs
+                                    , " } "
+                                    ]
+                , Rec (MkName ident1) [ (MkName ident2, p)
+                                      , (MkName ident3, sc)
+                                      ]
+                )
+
 export
 parseTest : IO ()
 parseTest = do testParse "primities" prims
                testParse "cons arity 1" singleCons
                testParse "cons arity 2" doubleCons
+               testParse "records" recs
