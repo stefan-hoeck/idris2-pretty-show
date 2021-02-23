@@ -6,6 +6,8 @@ import Text.Show.Value
 
 %language ElabReflection
 
+%runElab derive "Value" [Generic,Meta,Show,Eq]
+
 --------------------------------------------------------------------------------
 --          Mini Test Framework
 --------------------------------------------------------------------------------
@@ -72,11 +74,14 @@ chars = map show ['a','z','A','Z','0','9','\t','ä','ü']
 spaceStrs : List String
 spaceStrs = ["   ","\r\n","\n","\t\t \n"]
 
+ops : List String
+ops = [">>=", "+", "-", ">=", ">", "<", "::", "::="]
+
 idents : List String
 idents = ["idents", "nat_token", "Nat_Token", "foo_bar__", "_any123"]
 
-ops : List String
-ops = [">>=", "+", "-", ">=", ">", "<", "::", "::="]
+identOrOps : List String
+identOrOps = idents ++ map (\o => "(" ++ o ++ ")") ops
 
 symbols : List String
 symbols = ["(",")","[","]","{","}",",","="]
@@ -130,3 +135,43 @@ lexTest = do testLex "nat literals" natTokens
              testLex "identifiers" identTokens
              testLex "operators" opTokens
              testLex "symbols" symbolTokens
+
+--------------------------------------------------------------------------------
+--          Parsing
+--------------------------------------------------------------------------------
+
+testParse : String -> List (String, Value) -> IO ()
+testParse s ps = do putStrLn ("Parsing " ++ s)
+                    report $ run tst ps
+  where tst : (String, Value) -> Maybe String
+        tst (s,ts) = let res = parseValueE s
+                      in if res == Right ts then Nothing
+                                            else Just $ show res
+
+prims : List (String,Value)
+prims =  map (\s => (s, Chr s)) chars
+      ++ map (\s => (s, Natural s)) nats
+      ++ map (\s => (s, Dbl s)) doubles
+      ++ map (\s => (s, Str s)) strings
+      ++ map (\s => (s, Con (MkName s) [])) identOrOps
+
+singleCons : List (String,Value)
+singleCons = do (s,v) <- prims
+                ident <- identOrOps
+                pure ( ident ++ " " ++ s
+                     , Con (MkName ident) [v]
+                     )
+
+doubleCons : List (String,Value)
+doubleCons = do (ps,v)  <- prims
+                ident   <- identOrOps
+                (cs,sc) <- take 100 singleCons
+                pure ( ident ++ " " ++ ps ++ "(" ++ cs ++ ")"
+                     , Con (MkName ident) [v,sc]
+                     )
+
+export
+parseTest : IO ()
+parseTest = do testParse "primities" prims
+               testParse "cons arity 1" singleCons
+               testParse "cons arity 2" doubleCons

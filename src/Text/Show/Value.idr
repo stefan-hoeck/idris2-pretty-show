@@ -290,7 +290,8 @@ braces : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
 braces = between (symbol "{") (symbol "}")
 
 identOrOp : Rule Name
-identOrOp = identRule <|> parens operator
+identOrOp = identRule <|> 
+            map (\(MkName n) => MkName ("(" ++ n ++ ")")) (parens operator)
 
 mutual
   covering
@@ -300,6 +301,7 @@ mutual
   covering
   applied : Rule Value
   applied =   constant 
+          <|> map (\n => Con n []) identOrOp
           <|> negated
           <|> list
           <|> parens value
