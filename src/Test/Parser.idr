@@ -56,6 +56,38 @@ report (MkResult ok failed) = putStrLn $ redFailed ++ details
                              ]
                           ++ map (\(t,s) => spaces ++ show t ++ ": " ++ s) failed
 
+--------------------------------------------------------------------------------
+--          String Tokens
+--------------------------------------------------------------------------------
+
+nats : List String
+nats = ["0","123","0xabc123","0b11011","0o77653", "0XAFC123"]
+
+strings : List String
+strings = map show ["0 foo","x y z", "    ", "\t\t"]
+
+chars : List String
+chars = map show ['a','z','A','Z','0','9','\t','ä','ü']
+
+spaceStrs : List String
+spaceStrs = ["   ","\r\n","\n","\t\t \n"]
+
+idents : List String
+idents = ["idents", "nat_token", "Nat_Token", "foo_bar__", "_any123"]
+
+ops : List String
+ops = [">>=", "+", "-", ">=", ">", "<", "::", "::="]
+
+symbols : List String
+symbols = ["(",")","[","]","{","}",",","="]
+
+doubles : List String
+doubles = ["1.234", "12.0e-2", "0.334E+10", "0.1234E10"]
+
+--------------------------------------------------------------------------------
+--          Lexing
+--------------------------------------------------------------------------------
+
 testLex : String -> List (String, List ShowToken) -> IO ()
 testLex s ps = do putStrLn ("Lexing " ++ s)
                   report $ run tst ps
@@ -64,10 +96,37 @@ testLex s ps = do putStrLn ("Lexing " ++ s)
                       in if res == Right ts then Nothing
                                             else Just $ show res
 
-nats : List (String,List ShowToken)
-nats = map (\s => (s, [NatLit s]))
-           ["0","123","0xabc123","0b11011","0o77653", "0XAFC123"]
+natTokens : List (String,List ShowToken)
+natTokens = map (\s => (s, [NatLit s])) nats
+
+stringTokens : List (String,List ShowToken)
+stringTokens = map (\s => (s, [StringLit s])) strings
+
+charTokens : List (String,List ShowToken)
+charTokens = map (\s => (s, [CharLit s])) chars
+
+doubleTokens : List (String,List ShowToken)
+doubleTokens = map (\s => (s, [DblLit s])) doubles
+
+spaceTokens : List (String,List ShowToken)
+spaceTokens = map (\s => (s, [])) spaceStrs
+
+identTokens : List (String,List ShowToken)
+identTokens = map (\s => (s, [Ident s])) idents
+
+opTokens : List (String,List ShowToken)
+opTokens = map (\s => (s, [Op s])) ops
+
+symbolTokens : List (String,List ShowToken)
+symbolTokens = map (\s => (s, [Symbol s])) symbols
 
 export
 lexTest : IO ()
-lexTest = do testLex "nat literals" nats
+lexTest = do testLex "nat literals" natTokens
+             testLex "string literals" stringTokens
+             testLex "char literals" charTokens
+             testLex "float literals" doubleTokens
+             testLex "spaces" spaceTokens
+             testLex "identifiers" identTokens
+             testLex "operators" opTokens
+             testLex "symbols" symbolTokens

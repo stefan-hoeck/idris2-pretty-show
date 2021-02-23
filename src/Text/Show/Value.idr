@@ -212,13 +212,13 @@ anyIdent =  choice {t = List} [ namespacedIdent
 
 doubleLit : Lexer
 doubleLit = digits <+> is '.' <+> digits <+> opt
-             (is 'e' <+> opt (is '-' <|> is '+') <+> digits)
+             ((is 'e' <|> is 'E') <+> opt (is '-' <|> is '+') <+> digits)
 
 tokens : TokenMap ShowToken
-tokens = [ (binLit <|> octLit <|> hexLit <|> digits, NatLit)
+tokens = [ (doubleLit, DblLit)
+         , (binLit <|> octLit <|> hexLit <|> digits, NatLit)
          , (stringLit, StringLit)
          , (charLit, CharLit)
-         , (doubleLit, DblLit)
          , (anyIdent, Ident)
          , (op, parseOp)
          , (pred isSymbol, Symbol)
