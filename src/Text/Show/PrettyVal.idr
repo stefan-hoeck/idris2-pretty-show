@@ -90,6 +90,10 @@ namespace Derive
 --------------------------------------------------------------------------------
 
 public export
+PrettyVal Value where
+  prettyVal v = v
+
+public export
 PrettyVal () where
   prettyVal _ = Tuple []
 
@@ -238,3 +242,9 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
                       , ("Clause",       [PrettyVal])
                       , ("Decl",         [PrettyVal])
                       ]
+
+-- Pretty
+
+%runElab derive "ShowToken" [PrettyVal]
+
+%runElab derive "Err" [PrettyVal]

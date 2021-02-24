@@ -6,3 +6,5 @@ depends    = base, contrib, elab-util, sop
 modules = Text.Show.Pretty
         , Text.Show.PrettyVal
         , Text.Show.Value
+
+        , Test.Mini

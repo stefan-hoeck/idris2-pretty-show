@@ -2,61 +2,12 @@ module Test.Parser
 
 import Control.ANSI.SGR
 import Generics.Derive
-import Text.Show.Value
+import Text.Show.Pretty
+import Test.Mini
 
 %language ElabReflection
 
 %runElab derive "Value" [Generic,Meta,Show,Eq]
-
---------------------------------------------------------------------------------
---          Mini Test Framework
---------------------------------------------------------------------------------
-
-public export
-record Result t where
-  constructor MkResult
-  ok     : List t
-  failed : List (t, String)
-
-%runElab derive "Result" [Generic,Meta,Show,Eq,Semigroup,Monoid]
-
-public export
-run : (f : t -> Maybe String) -> List t -> Result t
-run f = concatMap run'
-  where run' : t -> Result t
-        run' t = maybe (MkResult [t] [])
-                       (\s => MkResult [] [(t,s)])
-                       (f t)
-
---------------------------------------------------------------------------------
---          ANSI Colorings and Reporting
---------------------------------------------------------------------------------
-
-export
-foreground : Color -> String -> String
-foreground c s = escapeSGR [SetForeground c] ++ s ++ escapeSGR [Reset]
-
-export
-greenOk : String
-greenOk =   "[" ++ foreground Green "OK" ++ "]      "
-
-export
-redFailed : String
-redFailed = "[" ++ foreground Red   "Failed" ++ "]  "
-
-export
-spaces : String
-spaces = "          "
-
-export
-report : Show t => Result t -> IO ()
-report (MkResult ok [])     = putStrLn $ greenOk ++ show (length ok) ++ " tests run"
-report (MkResult ok failed) = putStrLn $ redFailed ++ details
-  where details : String
-        details = unlines $  [ show (length ok + length failed) ++ " tests run"
-                             , spaces ++ show (length failed) ++ " tests failed"
-                             ]
-                          ++ map (\(t,s) => spaces ++ show t ++ ": " ++ s) failed
 
 --------------------------------------------------------------------------------
 --          String Tokens
@@ -95,11 +46,7 @@ doubles = ["1.234", "12.0e-2", "0.334E+10", "0.1234E10"]
 
 testLex : String -> List (String, List ShowToken) -> IO ()
 testLex s ps = do putStrLn ("Lexing " ++ s)
-                  report $ run tst ps
-  where tst : (String, List ShowToken) -> Maybe String
-        tst (s,ts) = let res = lex s
-                      in if res == Right ts then Nothing
-                                            else Just $ show res
+                  report $ runEq lex (map (map Right) ps)
 
 natTokens : List (String,List ShowToken)
 natTokens = map (\s => (s, [NatLit s])) nats
@@ -142,11 +89,7 @@ lexTest = do testLex "nat literals" natTokens
 
 testParse : String -> List (String, Value) -> IO ()
 testParse s ps = do putStrLn ("Parsing " ++ s)
-                    report $ run tst ps
-  where tst : (String, Value) -> Maybe String
-        tst (s,ts) = let res = parseValueE s
-                      in if res == Right ts then Nothing
-                                            else Just $ show res
+                    report $ runEq parseValueE (map (map Right) ps)
 
 prims : List (String,Value)
 prims =  map (\s => (s, Chr s)) chars
@@ -170,25 +113,42 @@ doubleCons = do (ps,v)  <- prims
                      , Con (MkName ident) [v,sc]
                      )
 
-recs : List (String,Value)
-recs = do (ps,p)  <- take 2 prims
-          ident1  <- take 2 identOrOps
-          ident2  <- take 2 identOrOps
-          ident3  <- take 2 identOrOps
-          (cs,sc) <- take 2 singleCons
-          pure  ( concat {t = List} [ ident1, " { "
-                                    , ident2, " = ", ps, ", "
-                                    , ident3, " = ", cs
-                                    , " } "
-                                    ]
-                , Rec (MkName ident1) [ (MkName ident2, p)
-                                      , (MkName ident3, sc)
-                                      ]
-                )
+emptyRecs : List (String,Value)
+emptyRecs = do i <- identOrOps
+               pure (i ++ " {}", Rec (MkName i) [])
+
+recs1 : List (String,Value)
+recs1 = do (ps,p)  <- take 2 prims
+           ident1  <- take 2 identOrOps
+           ident2  <- take 2 identOrOps
+           pure  ( concat {t = List} [ ident1, " { "
+                                     , ident2, " = ", ps
+                                     , " } "
+                                     ]
+                 , Rec (MkName ident1) [(MkName ident2, p)]
+                 )
+
+recs2 : List (String,Value)
+recs2 = do (ps,p)  <- take 2 prims
+           ident1  <- take 2 identOrOps
+           ident2  <- take 2 identOrOps
+           ident3  <- take 2 identOrOps
+           (cs,sc) <- take 2 singleCons
+           pure  ( concat {t = List} [ ident1, " { "
+                                     , ident2, " = ", ps, ", "
+                                     , ident3, " = ", cs
+                                     , " } "
+                                     ]
+                 , Rec (MkName ident1) [ (MkName ident2, p)
+                                       , (MkName ident3, sc)
+                                       ]
+                 )
 
 export
 parseTest : IO ()
 parseTest = do testParse "primities" prims
                testParse "cons arity 1" singleCons
                testParse "cons arity 2" doubleCons
-               testParse "records" recs
+               testParse "empty records" emptyRecs
+               testParse "records of arity 1" recs1
+               testParse "records of arity 2" recs2
