@@ -163,39 +163,118 @@ added ind = map (DocAdded ind) . lines
 same : (indent: Nat) -> String -> List DocDiff
 same ind = map (DocSame ind) . lines
 
-mkDocDiffN : (depth : Nat) -> (indent : Nat) -> ValueDiff -> List DocDiff
-mkDocDiffN _ ind (Same x)   = same ind (valToStr x)
-mkDocDiffN _ ind (Diff x y) = removed ind (valToStr x) ++ added ind (valToStr y)
-mkDocDiffN 0 _   _          = []
-mkDocDiffN (S k) ind v =
-  let x  = takeLeft v
-      y  = takeRight v
-   in if oneLiner x && oneLiner y
-         then removed ind (valToStr x) ++ added ind (valToStr y)
-         else ?foo
---  ValueCon n xs ->
---    same ind n ++
---    concatMap (mkDocDiff (ind + 2)) xs
---
---  ValueRec n nxs ->
---    same ind n ++
---    [DocOpen ind "{"] ++
---    fmap (\(name, x) -> DocItem (ind + 2) ", " (same 0 (name ++ " =") ++ mkDocDiff 2 x)) nxs ++
---    [DocClose (ind + 2) "}"]
---
---  ValueTuple xs ->
---    [DocOpen ind "("] ++
---    fmap (DocItem ind ", " . mkDocDiff 0) xs ++
---    [DocClose ind ")"]
---
---  ValueList xs ->
---    [DocOpen ind "["] ++
---    fmap (DocItem ind ", " . mkDocDiff 0) xs ++
---    [DocClose ind "]"]
---
---  ValueDiff x y ->
---    removed ind (valToStr x) ++
---    added ind (valToStr y)
+sameN : (indent: Nat) -> Name -> List DocDiff
+sameN ind = same ind . unName
 
+remAdd : (indent : Nat) -> Value -> Value -> List DocDiff
+remAdd ind x y = removed ind (valToStr x) ++ added ind (valToStr y)
+
+oneLine : Nat -> ValueDiff -> Lazy (List DocDiff) -> List DocDiff
+oneLine ind v dds =
+  let x = takeLeft v
+      y = takeRight v
+   in if oneLiner x && oneLiner y then remAdd ind x y else dds
+
+mkDocDiff : (depth : Nat) -> (indent : Nat) -> ValueDiff -> List DocDiff
+mkDocDiff _ ind (Same x)   = same ind (valToStr x)
+mkDocDiff _ ind (Diff x y) = remAdd ind x y
+mkDocDiff 0 _   _          = []
+
+mkDocDiff (S k) ind v@(Con n xs) =
+  oneLine ind v $ sameN ind n ++
+                  concatMap (mkDocDiff k (ind + 2)) xs
+
+mkDocDiff (S k) ind v@(Rec n xs) =
+  oneLine ind v $ sameN ind n ++
+                  [DocOpen ind "{"] ++
+                  map (\(nm, x) => DocItem (ind + 2) ", " (sameN 0 (nm <+> " =") ++ mkDocDiff k 2 x)) xs ++
+                  [DocClose ind "}"]
+
+mkDocDiff (S k) ind v@(Tuple x y xs) =
+  oneLine ind v $ [DocOpen ind "("] ++
+                  map (DocItem ind ", " . mkDocDiff k 0) (x::y::xs) ++
+                  [DocClose ind ")"]
+
+mkDocDiff (S k) ind v@(Lst xs) =
+  oneLine ind v $ [DocOpen ind "["] ++
+                  map (DocItem ind ", " . mkDocDiff k 0) xs ++
+                  [DocClose ind "]"]
+
+spaces : Nat -> String
+spaces ind = fastPack $ replicate ind ' '
+
+mkLineDiff : (d : Nat) -> (ind : Nat) -> String -> DocDiff -> List LineDiff
+-- mkLineDiff indent0 prefix0 diff =
+--   let
+--     mkLinePrefix indent =
+--       spaces indent0 ++ prefix0 ++ spaces indent
 -- 
+--     mkLineIndent indent =
+--       indent0 + length prefix0 + indent
+--   in
+--     case diff of
+--       DocSame indent x ->
+--         [LineSame $ mkLinePrefix indent ++ x]
 -- 
+--       DocRemoved indent x ->
+--         [LineRemoved $ mkLinePrefix indent ++ x]
+-- 
+--       DocAdded indent x ->
+--         [LineAdded $ mkLinePrefix indent ++ x]
+-- 
+--       DocOpen indent x ->
+--         [LineSame $ mkLinePrefix indent ++ x]
+-- 
+--       DocItem _ _ [] ->
+--         []
+-- 
+--       DocItem indent prefix (x@DocRemoved{} : y@DocAdded{} : xs) ->
+--         mkLineDiff (mkLineIndent indent) prefix x ++
+--         mkLineDiff (mkLineIndent indent) prefix y ++
+--         concatMap (mkLineDiff (mkLineIndent (indent + length prefix)) "") xs
+-- 
+--       DocItem indent prefix (x : xs) ->
+--         mkLineDiff (mkLineIndent indent) prefix x ++
+--         concatMap (mkLineDiff (mkLineIndent (indent + length prefix)) "") xs
+-- 
+--       DocClose indent x ->
+--         [LineSame $ spaces (mkLineIndent indent) ++ x]
+
+
+collapseOpen : List DocDiff -> List DocDiff
+collapseOpen (DocSame ind l :: DocOpen _ bra :: xs) =
+  DocSame ind (l ++ " " ++ bra) :: collapseOpen xs
+collapseOpen (DocItem ind pre xs :: ys) =
+  DocItem ind pre (collapseOpen xs) :: collapseOpen ys
+collapseOpen (x :: xs) = x :: collapseOpen xs
+collapseOpen [] = []
+
+dropLeadingSep : List DocDiff -> List DocDiff
+dropLeadingSep (DocOpen oind bra :: DocItem ind pre xs :: ys) =
+  DocOpen oind bra :: DocItem (ind + length pre) "" (dropLeadingSep xs) :: dropLeadingSep ys
+dropLeadingSep (DocItem ind pre xs :: ys) =
+  DocItem ind pre (dropLeadingSep xs) :: dropLeadingSep ys
+dropLeadingSep (x :: xs) = x :: dropLeadingSep xs
+dropLeadingSep [] = []
+
+export
+toLineDiff : ValueDiff -> List LineDiff
+toLineDiff v =
+  concatMap (\d => mkLineDiff (depth d) 0 "" d) .
+  collapseOpen .
+  dropLeadingSep $
+  mkDocDiff (depth v) 0 v
+
+export
+lineDiff : Value -> Value -> List LineDiff
+lineDiff x y = toLineDiff $ valueDiff x y
+
+export
+renderLineDiff : LineDiff -> String
+renderLineDiff (LineSame x)    = "  " ++ x
+renderLineDiff (LineRemoved x) = "- " ++ x
+renderLineDiff (LineAdded x)   = "+ " ++ x
+
+export
+renderValueDiff : ValueDiff -> String
+renderValueDiff = unlines . map renderLineDiff . toLineDiff
