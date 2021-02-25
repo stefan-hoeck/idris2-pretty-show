@@ -1,5 +1,6 @@
 module Text.Show.Value
 
+import Data.Vect
 import Data.List1
 import Generics.Derive
 import Text.Lexer
@@ -40,13 +41,14 @@ public export
 data Value = Con Name (List Value)
            | InfixCons Value (List (Name,Value))
            | Rec Name (List (Name,Value))
-           | Tuple (List Value)
+           | Tuple Value Value (List Value) -- At least two values
            | Lst (List Value)
            | Neg Value
            | Natural String
            | Dbl String
            | Chr String
            | Str String
+           | Unit
 
 %runElab derive "Value" [Generic,Meta]
 
@@ -124,15 +126,17 @@ hideCon collapse hidden = toVal . delMaybe
                                               (zip ls mbs)
                              in Just (Rec x ps)
 
-           Tuple []  => Just val
-           Tuple vs  => Tuple <$> delMany vs
-           Lst []    => Just val
-           Lst vs    => Lst <$> delMany vs
-           Neg v     => Neg <$> delMaybe v
-           Natural _ => Just val
-           Dbl _     => Just val
-           Chr _     => Just val
-           Str _     => Just val
+           Tuple v1 v2 vs  => let vs2 = delMany (v1 :: v2 :: Vect.fromList vs)
+                               in map (\(a::b::xs) => Tuple a b (toList xs)) vs2
+
+           Lst []          => Just val
+           Lst vs          => Lst <$> delMany vs
+           Neg v           => Neg <$> delMaybe v
+           Natural _       => Just val
+           Dbl _           => Just val
+           Chr _           => Just val
+           Str _           => Just val
+           Unit            => Just val
 
 --------------------------------------------------------------------------------
 --          Tokenizer
@@ -300,6 +304,9 @@ braces = between (symbol "{") (symbol "}")
 identOrOp : Rule Name
 identOrOp = identRule <|> 
             map (\(MkName n) => MkName ("(" ++ n ++ ")")) (parens operator)
+
+unit : Rule Value
+unit =  symbol "(" *> symbol ")" $> Unit
 
 mutual
   covering
