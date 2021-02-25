@@ -95,7 +95,7 @@ PrettyVal Value where
 
 public export
 PrettyVal () where
-  prettyVal _ = Tuple []
+  prettyVal _ = Con "()" []
 
 public export
 PrettyVal Bits8 where
@@ -153,8 +153,8 @@ PrettyVal a => PrettyVal (Vect n a) where
 public export
 (PrettyVal a, PrettyVal b) => PrettyVal (a,b) where
   prettyVal (a,b) = case prettyVal b of
-                         Tuple vs => Tuple (prettyVal a :: vs)
-                         val      => Tuple [prettyVal a, val]
+                         Tuple v1 v2 vs => Tuple (prettyVal a) v1 (v2 :: vs)
+                         val            => Tuple (prettyVal a) val []
 
 public export
 NP (PrettyVal . f) ks => PrettyVal (NP_ k f ks) where

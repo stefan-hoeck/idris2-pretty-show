@@ -48,7 +48,6 @@ data Value = Con Name (List Value)
            | Dbl String
            | Chr String
            | Str String
-           | Unit
 
 %runElab derive "Value" [Generic,Meta]
 
@@ -136,7 +135,6 @@ hideCon collapse hidden = toVal . delMaybe
            Dbl _           => Just val
            Chr _           => Just val
            Str _           => Just val
-           Unit            => Just val
 
 --------------------------------------------------------------------------------
 --          Tokenizer
@@ -306,12 +304,20 @@ identOrOp = identRule <|>
             map (\(MkName n) => MkName ("(" ++ n ++ ")")) (parens operator)
 
 unit : Rule Value
-unit =  symbol "(" *> symbol ")" $> Unit
+unit =  symbol "(" *> symbol ")" $> Con "()" []
 
 mutual
   covering
   value : Rule Value
-  value = constant <|> negated <|> list <|> rec <|> con <|> tuple <|> infx
+  value = choice {t = List} [ constant 
+                            , unit
+                            , negated
+                            , list
+                            , tuple
+                            , rec
+                            , con
+                            , infx
+                            ]
 
   covering
   applied : Rule Value
@@ -319,8 +325,8 @@ mutual
           <|> map (\n => Con n []) identOrOp
           <|> negated
           <|> list
-          <|> parens value
           <|> tuple
+          <|> parens value
 
   covering
   negated : Rule Value
@@ -328,7 +334,9 @@ mutual
 
   covering
   tuple : Rule Value
-  tuple = Tuple <$> parens (sepBy comma value)
+  tuple = parens $ do (v1::v2::vs) <- sepBy comma value
+                        | vs => fail "Tuple needs at least two values"
+                      pure (Tuple v1 v2 vs)
 
   covering
   list : Rule Value
