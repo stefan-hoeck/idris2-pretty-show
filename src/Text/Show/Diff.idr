@@ -40,7 +40,7 @@ namespace ValueDiff
                  (Lst xs)       => S $ maxDepth xs
                  (Same x)       => 0
                  (Diff x y)     => 0
-  
+
     where maxDepth : List ValueDiff -> Nat
           maxDepth []       = 0
           maxDepth (h :: t) = max (depth h) (maxDepth t)
@@ -77,8 +77,8 @@ namespace DocDiff
   depth : DocDiff -> Nat
   depth v = case v of
                  DocItem _ _ ds => S $ maxDepth ds
-                 _              => 0
-  
+                 _              => 1
+
     where maxDepth : List DocDiff -> Nat
           maxDepth []       = 0
           maxDepth (h :: t) = max (depth h) (maxDepth t)
@@ -204,42 +204,29 @@ spaces : Nat -> String
 spaces ind = fastPack $ replicate ind ' '
 
 mkLineDiff : (d : Nat) -> (ind : Nat) -> String -> DocDiff -> List LineDiff
--- mkLineDiff indent0 prefix0 diff =
---   let
---     mkLinePrefix indent =
---       spaces indent0 ++ prefix0 ++ spaces indent
--- 
---     mkLineIndent indent =
---       indent0 + length prefix0 + indent
---   in
---     case diff of
---       DocSame indent x ->
---         [LineSame $ mkLinePrefix indent ++ x]
--- 
---       DocRemoved indent x ->
---         [LineRemoved $ mkLinePrefix indent ++ x]
--- 
---       DocAdded indent x ->
---         [LineAdded $ mkLinePrefix indent ++ x]
--- 
---       DocOpen indent x ->
---         [LineSame $ mkLinePrefix indent ++ x]
--- 
---       DocItem _ _ [] ->
---         []
--- 
---       DocItem indent prefix (x@DocRemoved{} : y@DocAdded{} : xs) ->
---         mkLineDiff (mkLineIndent indent) prefix x ++
---         mkLineDiff (mkLineIndent indent) prefix y ++
---         concatMap (mkLineDiff (mkLineIndent (indent + length prefix)) "") xs
--- 
---       DocItem indent prefix (x : xs) ->
---         mkLineDiff (mkLineIndent indent) prefix x ++
---         concatMap (mkLineDiff (mkLineIndent (indent + length prefix)) "") xs
--- 
---       DocClose indent x ->
---         [LineSame $ spaces (mkLineIndent indent) ++ x]
+mkLineDiff 0     _    _    _    = []
+mkLineDiff (S k) ind0 pre0 diff =
+  case diff of
+    DocSame i x    => [LineSame $ mkLinePrefix i ++ x]
+    DocRemoved i x => [LineRemoved $ mkLinePrefix i ++ x]
+    DocAdded i x   => [LineAdded $ mkLinePrefix i ++ x]
+    DocOpen i x    => [LineSame $ mkLinePrefix i ++ x]
+    DocClose i x   => [LineSame $ spaces (mkLineIndent i) ++ x]
+    DocItem _ _ [] => []
+    DocItem i p (x@(DocRemoved _ _) :: y@(DocAdded _ _) :: xs) =>
+      mkLineDiff k (mkLineIndent i) p x ++
+      mkLineDiff k (mkLineIndent i) p y ++
+      concatMap (mkLineDiff k (mkLineIndent (i + length p)) "") xs
 
+    DocItem i p (x :: xs) =>
+      mkLineDiff k (mkLineIndent i) p x ++
+      concatMap (mkLineDiff k (mkLineIndent (i + length p)) "") xs
+
+  where mkLinePrefix : Nat -> String
+        mkLinePrefix ind = spaces ind0 ++ pre0 ++ spaces ind
+
+        mkLineIndent : Nat -> Nat
+        mkLineIndent ind = ind0 + length pre0 + ind
 
 collapseOpen : List DocDiff -> List DocDiff
 collapseOpen (DocSame ind l :: DocOpen _ bra :: xs) =
