@@ -57,6 +57,28 @@ Eq Value where (==) = genEq
 export covering
 Show Value where showPrec = genShowPrec
 
+export
+depth : Value -> Nat
+depth v = case v of
+               (Con x xs)       => S $ maxDepth xs
+               (InfixCons x xs) => S $ maxDepthP xs
+               (Rec x xs)       => S $ maxDepthP xs
+               (Tuple x y xs)   => S . max (depth x) $ max (depth y) (maxDepth xs)
+               (Lst xs)         => S $ maxDepth xs
+               (Neg x)          => S $ depth x
+               (Natural x)      => 0
+               (Dbl x)          => 0
+               (Chr x)          => 0
+               (Str x)          => 0
+
+  where maxDepth : List Value -> Nat
+        maxDepth []       = 0
+        maxDepth (h :: t) = max (depth h) (maxDepth t)
+
+        maxDepthP : List (a,Value) -> Nat
+        maxDepthP []           = 0
+        maxDepthP ((_,h) :: t) = max (depth h) (maxDepthP t)
+
 ||| Displays an applied binary operator.
 ||| If the same operator appears several times in a row,
 ||| this is treated as a list of infix constructors.
