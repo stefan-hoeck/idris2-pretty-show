@@ -48,6 +48,14 @@ data Value = Con Name (List Value)
            | Chr String
            | Str String
 
+%runElab derive "Value" [Generic,Meta]
+
+export covering
+Eq Value where (==) = genEq
+
+export covering
+Show Value where showPrec = genShowPrec
+
 ||| Displays an applied binary operator.
 ||| If the same operator appears several times in a row,
 ||| this is treated as a list of infix constructors.
@@ -296,7 +304,7 @@ identOrOp = identRule <|>
 mutual
   covering
   value : Rule Value
-  value = constant <|> negated <|> list <|> con <|> rec <|> tuple <|> infx
+  value = constant <|> negated <|> list <|> rec <|> con <|> tuple <|> infx
 
   covering
   applied : Rule Value

@@ -1,13 +1,9 @@
 module Test.Parser
 
 import Control.ANSI.SGR
-import Generics.Derive
+import Data.List
 import Text.Show.Pretty
 import Test.Mini
-
-%language ElabReflection
-
-%runElab derive "Value" [Generic,Meta,Show,Eq]
 
 --------------------------------------------------------------------------------
 --          String Tokens
@@ -117,10 +113,13 @@ emptyRecs : List (String,Value)
 emptyRecs = do i <- identOrOps
                pure (i ++ " {}", Rec (MkName i) [])
 
+primsOrCons : List (String,Value)
+primsOrCons = prims ++ take 10 singleCons ++ take 20 doubleCons
+
 recs1 : List (String,Value)
-recs1 = do (ps,p)  <- take 2 prims
-           ident1  <- take 2 identOrOps
-           ident2  <- take 2 identOrOps
+recs1 = do (ps,p)  <- primsOrCons
+           ident1  <- identOrOps
+           ident2  <- identOrOps
            pure  ( concat {t = List} [ ident1, " { "
                                      , ident2, " = ", ps
                                      , " } "
@@ -129,11 +128,11 @@ recs1 = do (ps,p)  <- take 2 prims
                  )
 
 recs2 : List (String,Value)
-recs2 = do (ps,p)  <- take 2 prims
+recs2 = do (ps,p)  <- take 20 primsOrCons
            ident1  <- take 2 identOrOps
            ident2  <- take 2 identOrOps
            ident3  <- take 2 identOrOps
-           (cs,sc) <- take 2 singleCons
+           (cs,sc) <- take 5 doubleCons
            pure  ( concat {t = List} [ ident1, " { "
                                      , ident2, " = ", ps, ", "
                                      , ident3, " = ", cs
