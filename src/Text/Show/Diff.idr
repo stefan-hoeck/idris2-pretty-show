@@ -24,11 +24,11 @@ data ValueDiff = Con Name (List ValueDiff)
 
 %runElab derive "ValueDiff" [Generic,Meta]
 
-export covering
-Eq ValueDiff where (==) = genEq
+export
+Eq ValueDiff where (==) = assert_total genEq
 
-export covering
-Show ValueDiff where showPrec = genShowPrec
+export
+Show ValueDiff where showPrec = assert_total genShowPrec
 
 namespace ValueDiff
   export
@@ -66,11 +66,11 @@ data DocDiff = DocSame Nat String
 
 %runElab derive "DocDiff" [Generic,Meta]
 
-export covering
-Eq DocDiff where (==) = genEq
+export
+Eq DocDiff where (==) = assert_total genEq
 
-export covering
-Show DocDiff where showPrec = genShowPrec
+export
+Show DocDiff where showPrec = assert_total genShowPrec
 
 namespace DocDiff
   export

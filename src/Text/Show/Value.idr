@@ -51,11 +51,11 @@ data Value = Con Name (List Value)
 
 %runElab derive "Value" [Generic,Meta]
 
-export covering
-Eq Value where (==) = genEq
+export
+Eq Value where (==) = assert_total genEq
 
-export covering
-Show Value where showPrec = genShowPrec
+export
+Show Value where showPrec = assert_total genShowPrec
 
 export
 depth : Value -> Nat
