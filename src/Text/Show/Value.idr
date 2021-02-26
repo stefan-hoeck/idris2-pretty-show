@@ -30,12 +30,12 @@ Pretty Name where
 
 ||| Generic Idris values.
 ||| The `String` in the literals is the text for the literals "as is".
-||| 
+|||
 ||| A chain of infix constructors means that they appeared in the input string
 ||| without parentheses, i.e
-||| 
+|||
 ||| `1 :+: 2 :*: 3` is represented with `InfixCons 1 [(":+:",2),(":*:",3)]`, whereas
-||| 
+|||
 ||| `1 :+: (2 :*: 3)` is represented with `InfixCons 1 [(":+:",InfixCons 2 [(":*:",3)])]`.
 public export
 data Value = Con Name (List Value)
@@ -94,7 +94,7 @@ binOp op pvx pvy =
 ||| Hide constructors matching the given predicate.
 ||| If the hidden value is in a record, we also hide
 ||| the corresponding record field.
-||| 
+|||
 ||| If the boolean flag is true, then we also hide
 ||| constructors all of whose fields were hidden.
 public export
@@ -322,7 +322,7 @@ braces : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
 braces = between (symbol "{") (symbol "}")
 
 identOrOp : Rule Name
-identOrOp = identRule <|> 
+identOrOp = identRule <|>
             map (\(MkName n) => MkName ("(" ++ n ++ ")")) (parens operator)
 
 unit : Rule Value
@@ -331,7 +331,7 @@ unit =  symbol "(" *> symbol ")" $> Con "()" []
 mutual
   covering
   value : Rule Value
-  value = choice {t = List} [ constant 
+  value = choice {t = List} [ constant
                             , unit
                             , negated
                             , list
@@ -343,7 +343,7 @@ mutual
 
   covering
   applied : Rule Value
-  applied =   constant 
+  applied =   constant
           <|> map (\n => Con n []) identOrOp
           <|> negated
           <|> list
@@ -371,7 +371,7 @@ mutual
   covering
   rec : Rule Value
   rec = [| Rec identOrOp (braces $ sepBy comma pair) |]
-  
+
   covering
   con : Rule Value
   con = [| Con identOrOp (many applied) |]

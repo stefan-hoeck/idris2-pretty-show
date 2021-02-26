@@ -27,7 +27,7 @@ blockWith :  (List (Doc ann) -> Doc ann)
           -> Char
           -> List (Doc ann) -> Doc ann
 blockWith _ a b []       = pretty a <+> pretty b
-blockWith f a b (d::ds)  = f $  (pretty a <++> d) 
+blockWith f a b (d::ds)  = f $  (pretty a <++> d)
                              :: [ pretty ',' <++> x | x <- ds ]
                              ++ [ pretty b ]
 
@@ -195,7 +195,7 @@ PrettyVal a => PrettyVal (PreProc a) where
 --     wrap t = case (t,txt) of
 --               (h:_,'(':_) | h /= '(' -> '(' : (t ++ ')' : cs)
 --               _ -> t ++ cs
--- 
+--
 
 ||| Hide the given constructors when showing a value.
 export
@@ -211,8 +211,8 @@ ppHideNested p = MkPreProc (hideCon True p)
 -- module Text.Show.Pretty
 --   ( -- * Generic representation of values
 --   , valToHtmlPage
--- 
--- 
+--
+--
 --     -- * Rendering values to Html
 --   , valToHtml, HtmlOpts(..), defaultHtmlOpts, htmlPage, Html(..)
--- 
+--
