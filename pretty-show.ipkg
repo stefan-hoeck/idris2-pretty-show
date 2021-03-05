@@ -1,7 +1,11 @@
 package pretty-show
 
 sourcedir  = "src"
-depends    = base, contrib, elab-util, sop
+version    = 0.1.0
+depends    = base      >= 0.3.0
+           , contrib   >= 0.3.0
+           , elab-util >= 0.1.1
+           , sop       >= 0.1.1
 
 modules = Text.Show.Diff
         , Text.Show.Pretty

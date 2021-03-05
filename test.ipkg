@@ -1,10 +1,14 @@
-package test
+package pretty-show-test
+
+sourcedir  = "src"
+version    = 0.1.0
+depends    = base      >= 0.3.0
+           , contrib   >= 0.3.0
+           , elab-util >= 0.1.1
+           , sop       >= 0.1.1
 
 executable = runTest
 
 main = Test.Main
-
-sourcedir  = "src"
-depends    = base, contrib, elab-util, sop
 
 modules = Test.Parser
