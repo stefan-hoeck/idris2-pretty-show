@@ -167,8 +167,8 @@ data Flavour = Capitalised | Normal
 
 isIdentStart : Flavour -> Char -> Bool
 isIdentStart _           '_' = True
-isIdentStart Capitalised  x  = isUpper x || x > chr 160
-isIdentStart _            x  = isAlpha x || x > chr 160
+isIdentStart Capitalised  x  = isUpper x
+isIdentStart _            x  = isAlpha x
 
 isIdentTrailing : Char -> Bool
 isIdentTrailing '\'' = True
@@ -300,6 +300,11 @@ operator = terminal "Expected operator"
                     \case Op s => Just $ MkName s
                           _    => Nothing
 
+minus : Rule ()
+minus = terminal "Expected minus sign"
+                 \case Op "-" => Just ()
+                       _      => Nothing
+
 symbol : String -> Rule ()
 symbol s = terminal ("Expected " ++ s)
                     \case Symbol s2 => if s == s2 then Just ()
@@ -346,14 +351,13 @@ mutual
   applied =   constant
           <|> unit
           <|> map (\n => Con n []) identOrOp
-          <|> parens negated
           <|> list
           <|> tuple
           <|> parens value
 
   covering
   negated : Rule Value
-  negated = symbol "-" *> map Neg applied
+  negated = minus *> map Neg applied
 
   covering
   tuple : Rule Value
