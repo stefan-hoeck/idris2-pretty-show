@@ -13,3 +13,4 @@ executable = runTest
 main = Test.Main
 
 modules = Test.Parser
+        , Test.PP
