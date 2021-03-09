@@ -344,8 +344,9 @@ mutual
   covering
   applied : Rule Value
   applied =   constant
+          <|> unit
           <|> map (\n => Con n []) identOrOp
-          <|> negated
+          <|> parens negated
           <|> list
           <|> tuple
           <|> parens value
