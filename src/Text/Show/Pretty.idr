@@ -41,6 +41,7 @@ toDoc : Value -> Doc ann
 toDoc val =
   case val of
     Con (MkName "") vs => sep $ atoms vs
+    Con (MkName c)  [] => pretty c
     Con (MkName c)  vs => hangAfter (pretty c) 2 (sep $ atoms vs)
     InfixCons v1 cvs   => hangsep (infx v1 cvs)
     Rec c fs           => hangAfter (pretty c) 2 $ block '{' '}' (fields fs)
