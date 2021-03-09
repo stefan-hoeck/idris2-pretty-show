@@ -1,6 +1,5 @@
 module Test.Parser
 
-import Control.ANSI.SGR
 import Data.List
 import Text.Show.Pretty
 import Test.Mini
