@@ -1,14 +1,15 @@
 module Test.PP
 
+import Text.PrettyPrint.Prettyprinter
 import Text.Show.Pretty
 import Test.Mini
 
-[IdShow] Show String where
-  show = id
+doPP : String -> String
+doPP s = maybe "" (show . valToDoc {ann = ()}) $ parseValue s
 
 testPP : String -> List (String,String) -> IO ()
 testPP s ps = do putStrLn ("Pretty printing " ++ s)
-                 report $ runEq (\v => ppShow @{IdShow} v) ps
+                 report $ runEq doPP ps
 
 pair : a -> (a,a)
 pair x = (x, x)
@@ -36,10 +37,10 @@ ppTest = do testPP "naturals" $ map pair ["0","123","10000"]
               map pair ["Ident 12", "Foo 'a'", "H ()", "_foo 1.22"]
 
             testPP "arity 2 cons" $
-              map pair ["Ident 12 'a'", "Foo 'a' \"bar\"", "H () 12", "_foo 1.22 -1"]
+              map pair ["Ident 12 'a'", "Foo 'a' \"bar\"", "H () 12", "_foo 1.22 (-1)"]
 
             testPP "nexted cons" $
               map pair ["Ident 12 (Foo 'a') (Maybe 12)"
                        , "Foo (Left 'a') (MkPair \"bar \" 1.20)"
-                       , "Bracket (TH 12) (Element 12 _)"
+                       , "Bracket (TH 12) (Element 12 _) (-12.1)"
                        ]

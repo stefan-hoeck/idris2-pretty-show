@@ -93,6 +93,10 @@ prims =  map (\s => (s, Chr s)) chars
       ++ map (\s => (s, Str s)) strings
       ++ map (\s => (s, Con (MkName s) [])) identOrOps
 
+negated : List (String,Value)
+negated =  map (\s => ("-" ++ s, Neg $ Natural s)) nats
+        ++ map (\s => ("-" ++ s, Neg $ Dbl s)) doubles
+
 singleCons : List (String,Value)
 singleCons = do (s,v) <- prims
                 ident <- identOrOps
@@ -145,6 +149,7 @@ recs2 = do (ps,p)  <- take 20 primsOrCons
 export
 parseTest : IO ()
 parseTest = do testParse "primities" prims
+               testParse "negated" negated
                testParse "cons arity 1" singleCons
                testParse "cons arity 2" doubleCons
                testParse "empty records" emptyRecs
