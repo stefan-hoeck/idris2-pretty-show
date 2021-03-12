@@ -39,7 +39,7 @@ ppTest = do testPP "naturals" $ map pair ["0","123","10000"]
             testPP "arity 2 cons" $
               map pair ["Ident 12 'a'", "Foo 'a' \"bar\"", "H () 12", "_foo 1.22 (-1)"]
 
-            testPP "nexted cons" $
+            testPP "nested cons" $
               map pair ["Ident 12 (Foo 'a') (Maybe 12)"
                        , "Foo (Left 'a') (MkPair \"bar \" 1.20)"
                        , "Bracket (TH 12) (Element 12 _) (-12.1)"
