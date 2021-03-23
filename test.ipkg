@@ -2,7 +2,7 @@ package pretty-show-test
 
 authors    = "stefan-hoeck"
 sourcedir  = "src"
-version    = 0.1.1
+version    = 0.1.2
 depends    = base      >= 0.3.0
            , contrib   >= 0.3.0
            , elab-util >= 0.1.1
