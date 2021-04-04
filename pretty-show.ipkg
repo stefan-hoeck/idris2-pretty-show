@@ -2,11 +2,11 @@ package pretty-show
 
 authors    = "stefan-hoeck"
 sourcedir  = "src"
-version    = 0.1.2
+version    = 0.2.0
 depends    = base      >= 0.3.0
            , contrib   >= 0.3.0
-           , elab-util >= 0.1.1
-           , sop       >= 0.1.1
+           , elab-util >= 0.2.0
+           , sop       >= 0.2.2
 
 modules = Text.Show.Diff
         , Text.Show.Pretty

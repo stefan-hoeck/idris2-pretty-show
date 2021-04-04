@@ -44,6 +44,12 @@ record Result i o where
 
 %runElab derive "Result" [Generic,Meta,Show,Eq,Semigroup,Monoid]
 
+export
+Semigroup (Result i o) where (<+>) = genAppend
+
+export
+Monoid (Result i o) where neutral = genNeutral
+
 --------------------------------------------------------------------------------
 --          Running Tests
 --------------------------------------------------------------------------------

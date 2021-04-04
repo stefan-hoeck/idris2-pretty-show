@@ -185,8 +185,6 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 
 %runElab derive "List1" [PrettyVal]
 
-%runElab derive "Dec" [PrettyVal]
-
 %runElab derive "Prec" [PrettyVal]
 
 -- System
