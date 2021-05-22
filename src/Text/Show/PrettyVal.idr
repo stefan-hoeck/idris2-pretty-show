@@ -20,6 +20,7 @@ PName = Text.Show.Value.Name
 ||| for datatypes that support `Generics`.
 public export
 interface PrettyVal a where
+  constructor MkPrettyVal
   prettyVal : a -> Value
 
 --------------------------------------------------------------------------------
@@ -67,17 +68,12 @@ genPrettyVal = prettySOP (metaFor t) . from
 
 namespace Derive
 
-  ||| Creates a `Show` value from the passed functions.
-  public export total %inline
-  mkPrettyVal : (prettyVal : a -> Value) -> PrettyVal a
-  mkPrettyVal = %runElab check (var $ singleCon "PrettyVal")
-
   ||| Derives a `PrettyVal` implementation for the given data type
   ||| and visibility.
   export total
   PrettyValVis : Visibility -> DeriveUtil -> InterfaceImpl
   PrettyValVis vis g = MkInterfaceImpl "PrettyVal" vis []
-                         `(mkPrettyVal genPrettyVal)
+                         `(MkPrettyVal genPrettyVal)
                          (implementationType `(PrettyVal) g)
 
   ||| Alias for `PrettyValVis Public`.
