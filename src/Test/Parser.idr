@@ -39,7 +39,7 @@ doubles = ["1.234", "12.0e-2", "0.334E+10", "0.1234E10"]
 --          Lexing
 --------------------------------------------------------------------------------
 
-testLex : String -> List (String, List ShowToken) -> IO ()
+testLex : String -> List (String, List ShowToken) -> IO Bool
 testLex s ps = do putStrLn ("Lexing " ++ s)
                   report $ runEq lex (map (map Right) ps)
 
@@ -68,21 +68,22 @@ symbolTokens : List (String,List ShowToken)
 symbolTokens = map (\s => (s, [Symbol s])) symbols
 
 export
-lexTest : IO ()
-lexTest = do testLex "nat literals" natTokens
-             testLex "string literals" stringTokens
-             testLex "char literals" charTokens
-             testLex "float literals" doubleTokens
-             testLex "spaces" spaceTokens
-             testLex "identifiers" identTokens
-             testLex "operators" opTokens
-             testLex "symbols" symbolTokens
+lexTest : IO Bool
+lexTest = testAll [ testLex "nat literals" natTokens
+                  , testLex "string literals" stringTokens
+                  , testLex "char literals" charTokens
+                  , testLex "float literals" doubleTokens
+                  , testLex "spaces" spaceTokens
+                  , testLex "identifiers" identTokens
+                  , testLex "operators" opTokens
+                  , testLex "symbols" symbolTokens
+                  ]
 
 --------------------------------------------------------------------------------
 --          Parsing
 --------------------------------------------------------------------------------
 
-testParse : String -> List (String, Value) -> IO ()
+testParse : String -> List (String, Value) -> IO Bool
 testParse s ps = do putStrLn ("Parsing " ++ s)
                     report $ runEq parseValueE (map (map Right) ps)
 
@@ -147,11 +148,12 @@ recs2 = do (ps,p)  <- take 20 primsOrCons
                  )
 
 export
-parseTest : IO ()
-parseTest = do testParse "primities" prims
-               testParse "negated" negated
-               testParse "cons arity 1" singleCons
-               testParse "cons arity 2" doubleCons
-               testParse "empty records" emptyRecs
-               testParse "records of arity 1" recs1
-               testParse "records of arity 2" recs2
+parseTest : IO Bool
+parseTest = testAll [ testParse "primities" prims
+                    , testParse "negated" negated
+                    , testParse "cons arity 1" singleCons
+                    , testParse "cons arity 2" doubleCons
+                    , testParse "empty records" emptyRecs
+                    , testParse "records of arity 1" recs1
+                    , testParse "records of arity 2" recs2
+                    ]

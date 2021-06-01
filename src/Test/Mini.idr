@@ -95,15 +95,20 @@ spaces : String
 spaces = "          "
 
 export
-report : PrettyVal i => PrettyVal o => Result i o -> IO ()
+report : PrettyVal i => PrettyVal o => Result i o -> IO Bool
 report (MkResult ok [])      =
-  putStrLn $ greenOk ++ show (length ok) ++ " tests run"
+  putStrLn (greenOk ++ show (length ok) ++ " tests run") $> True
 
 report (MkResult ok (f::fs)) =
   do putStrLn (redFailed ++ summary)
      putStrLn "First failure"
      dumpIO f
+     pure False
   where summary : String
         summary = unlines [ show (length ok + length fs + 1) ++ " tests run"
                           , spaces ++ show (length fs + 1) ++ " tests failed"
                           ]
+
+export
+testAll : List (IO Bool) -> IO Bool
+testAll = map and . traverse (map delay)
