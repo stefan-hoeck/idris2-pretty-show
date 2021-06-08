@@ -197,6 +197,12 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 
 -- Reflection
 
+%runElab derive "ModuleIdent" [PrettyVal]
+
+%runElab derive "VirtualIdent" [PrettyVal]
+
+%runElab derive "OriginDesc" [PrettyVal]
+
 %runElab derive "FC" [PrettyVal]
 
 %runElab derive "NameType" [PrettyVal]
