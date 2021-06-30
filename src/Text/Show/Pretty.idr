@@ -186,18 +186,6 @@ export
 PrettyVal a => PrettyVal (PreProc a) where
   prettyVal (MkPreProc p v) = p (prettyVal v)
 
--- instance Show a => Show (PreProc a) where
---   showsPrec p (PreProc f a) cs =
---     case parseValue txt of
---       Nothing -> txt ++ cs
---       Just v  -> wrap (valToStr (f v))
---     where
---     txt    = showsPrec p a ""
---     wrap t = case (t,txt) of
---               (h:_,'(':_) | h /= '(' -> '(' : (t ++ ')' : cs)
---               _ -> t ++ cs
---
-
 ||| Hide the given constructors when showing a value.
 export
 ppHide : (Name -> Bool) -> a -> PreProc a
@@ -208,12 +196,3 @@ ppHide p = MkPreProc (hideCon False p)
 export
 ppHideNested : (Name -> Bool) -> a -> PreProc a
 ppHideNested p = MkPreProc (hideCon True p)
-
--- module Text.Show.Pretty
---   ( -- * Generic representation of values
---   , valToHtmlPage
---
---
---     -- * Rendering values to Html
---   , valToHtml, HtmlOpts(..), defaultHtmlOpts, htmlPage, Html(..)
---
