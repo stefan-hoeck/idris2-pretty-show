@@ -123,6 +123,22 @@ PrettyVal Int where
   prettyVal = mkNum Natural
 
 public export
+PrettyVal Int8 where
+  prettyVal = mkNum Natural
+
+public export
+PrettyVal Int16 where
+  prettyVal = mkNum Natural
+
+public export
+PrettyVal Int32 where
+  prettyVal = mkNum Natural
+
+public export
+PrettyVal Int64 where
+  prettyVal = mkNum Natural
+
+public export
 PrettyVal Integer where
   prettyVal = mkNum Natural
 
