@@ -247,6 +247,10 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 
 %runElab derive "DataOpt" [PrettyVal]
 
+%runElab derive "WithFlag" [PrettyVal]
+
+%runElab derive "BuiltinType" [PrettyVal]
+
 %runElab deriveMutual [ ("TTImp",        [PrettyVal])
                       , ("IField",       [PrettyVal])
                       , ("IFieldUpdate", [PrettyVal])
