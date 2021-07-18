@@ -4,9 +4,9 @@ lib_pkg = pretty-show.ipkg
 
 test_pkg = test.ipkg
 
-.PHONY: all lib install clean clean-install
+.PHONY: all lib install clean clean-install test
 
-all: lib docs
+all: lib test
 
 clean-install: clean install
 
