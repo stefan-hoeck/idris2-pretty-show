@@ -151,17 +151,17 @@ takeRight = take \_,y => y
 
 oneLiner : Value -> Bool
 oneLiner x = case lines (valToStr x) of
-               _ ::: Nil   => True
-               _           => False
+               _ :: Nil   => True
+               _          => False
 
 removed : (indent: Nat) -> String -> List DocDiff
-removed ind = map (DocRemoved ind) . forget . lines
+removed ind = map (DocRemoved ind) . lines
 
 added : (indent: Nat) -> String -> List DocDiff
-added ind = map (DocAdded ind) . forget . lines
+added ind = map (DocAdded ind) . lines
 
 same : (indent: Nat) -> String -> List DocDiff
-same ind = map (DocSame ind) . forget . lines
+same ind = map (DocSame ind) . lines
 
 sameN : (indent: Nat) -> Name -> List DocDiff
 sameN ind = same ind . unName
