@@ -4,6 +4,7 @@ import Data.List
 import Data.List1
 import Data.Vect
 import Text.Show.Value
+import Text.Lexer
 
 import Generics.Derive
 import System.Clock
@@ -266,5 +267,9 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 -- Pretty
 
 %runElab derive "ShowToken" [PrettyVal]
+
+%runElab derive "Bounds" [Generic, Meta, PrettyVal]
+
+%runElab derive "WithBounds" [Generic, Meta, PrettyVal]
 
 %runElab derive "Err" [PrettyVal]

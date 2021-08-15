@@ -200,18 +200,6 @@ data ShowToken = StringLit String
 
 %runElab derive "ShowToken" [Generic,Meta,Show,Eq]
 
-binDigit : Lexer
-binDigit = pred (\c => c == '0' || c == '1')
-
-binDigits : Lexer
-binDigits = some binDigit
-
-binLit : Lexer
-binLit = exact "0b" <+> binDigits
-
-octLit : Lexer
-octLit = exact "0o" <+> octDigits
-
 holeIdent : Lexer
 holeIdent = is '?' <+> identNormal
 
@@ -259,31 +247,36 @@ tokens = [ (doubleLit, DblLit)
 
 public export
 data Err = LexErr Int Int String
-         | ParseErr String (List ShowToken)
+         | ParseErr String
+         | EOIErr (List $ WithBounds ShowToken)
 
 %runElab derive "Err" [Generic,Meta,Show,Eq]
 
 export
-lex : String -> Either Err (List ShowToken)
+lex : String -> Either Err (List $ WithBounds ShowToken)
 lex str = case lex tokens str of
-               (ts, (_, _, "")) => Right . filter notSpace $ map tok ts
+               (ts, (_, _, "")) => Right $ filter (notSpace . val) ts
                (_, (a,b,c))     => Left $ LexErr a b c
   where notSpace : ShowToken -> Bool
         notSpace (Space _) = False
         notSpace _         = True
+
+export
+lex_ : String -> Either Err (List ShowToken)
+lex_ = (map . map) val . lex
 
 --------------------------------------------------------------------------------
 --          Parser
 --------------------------------------------------------------------------------
 
 Rule : Type -> Type
-Rule = Grammar ShowToken True
+Rule = Grammar () ShowToken True
 
 EmptyRule : Type -> Type
-EmptyRule = Grammar ShowToken False
+EmptyRule = Grammar () ShowToken False
 
 constant : Rule Value
-constant = terminal "Expected constant"
+constant = terminal "Expected constant" $ 
                      \case CharLit c    => Just $ Chr c
                            DblLit d     => Just $ Dbl d
                            StringLit s  => Just $ Str s
@@ -291,22 +284,22 @@ constant = terminal "Expected constant"
                            _            => Nothing
 
 identRule : Rule Name
-identRule = terminal "Expected identifier"
+identRule = terminal "Expected identifier" $ 
                      \case Ident s => Just $ MkName s
                            _       => Nothing
 
 operator : Rule Name
-operator = terminal "Expected operator"
+operator = terminal "Expected operator" $ 
                     \case Op s => Just $ MkName s
                           _    => Nothing
 
 minus : Rule ()
-minus = terminal "Expected minus sign"
+minus = terminal "Expected minus sign" $ 
                  \case Op "-" => Just ()
                        _      => Nothing
 
 symbol : String -> Rule ()
-symbol s = terminal ("Expected " ++ s)
+symbol s = terminal ("Expected " ++ s) $ 
                     \case Symbol s2 => if s == s2 then Just ()
                                                   else Nothing
                           _         => Nothing
@@ -317,14 +310,14 @@ comma = symbol ","
 equals : Rule ()
 equals = symbol "="
 
-parens : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
-parens = between (symbol "(") (symbol ")")
+parens : {c : _} -> Inf (Grammar () ShowToken c a) -> Rule a
+parens g = symbol "(" *> g <* symbol ")"
 
-brackets : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
-brackets = between (symbol "[") (symbol "]")
+brackets : {c : _} -> Inf (Grammar () ShowToken c a) -> Rule a
+brackets g = symbol "[" *> g <* symbol "]"
 
-braces : {c : _} -> Inf (Grammar ShowToken c a) -> Rule a
-braces = between (symbol "{") (symbol "}")
+braces : {c : _} -> Inf (Grammar () ShowToken c a) -> Rule a
+braces g = symbol "{" *> g <* symbol "}"
 
 identOrOp : Rule Name
 identOrOp = identRule <|>
@@ -390,16 +383,16 @@ mutual
                   map (\(v2,ps) => (v,(op,v2) :: ps)) go <|>
                   map (\v2 => (v, [(op,v2)])) applied
 
-export
+export covering
 parseValueE : String -> Either Err Value
 parseValueE str = lex str >>= doParse
-  where doParse : List ShowToken -> Either Err Value
+  where covering doParse : List (WithBounds ShowToken) -> Either Err Value
         doParse ts =
           case parse value ts of
-               Left (Error str ts) => Left $ ParseErr str ts
-               Right (v,[])        => Right v
-               Right (_,ts)        => Left $ ParseErr "Expected end of input" ts
+               Left (Error str _ ::: _) => Left $ ParseErr str
+               Right (v,[])             => Right v
+               Right (_,ts)             => Left $ EOIErr ts
 
-export
+export covering
 parseValue : String -> Maybe Value
 parseValue = either (const Nothing) Just . parseValueE

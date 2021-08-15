@@ -3,6 +3,7 @@ module Test.Parser
 import Data.List
 import Text.Show.Pretty
 import Test.Mini
+import Text.Lexer
 
 --------------------------------------------------------------------------------
 --          String Tokens
@@ -41,7 +42,7 @@ doubles = ["1.234", "12.0e-2", "0.334E+10", "0.1234E10"]
 
 testLex : String -> List (String, List ShowToken) -> IO Bool
 testLex s ps = do putStrLn ("Lexing " ++ s)
-                  report $ runEq lex (map (map Right) ps)
+                  report $ runEq lex_ (map (map Right) ps)
 
 natTokens : List (String,List ShowToken)
 natTokens = map (\s => (s, [NatLit s])) nats

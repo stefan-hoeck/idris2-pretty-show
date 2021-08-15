@@ -143,11 +143,11 @@ take f v = case v of
 
 export
 takeLeft : ValueDiff -> Value
-takeLeft = take \x,_ => x
+takeLeft = take $ \x,_ => x
 
 export
 takeRight : ValueDiff -> Value
-takeRight = take \_,y => y
+takeRight = take $ \_,y => y
 
 oneLiner : Value -> Bool
 oneLiner x = case lines (valToStr x) of

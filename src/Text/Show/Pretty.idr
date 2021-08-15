@@ -104,46 +104,46 @@ valToStr = show . valToDoc {ann = ()}
 --          Pretty via Show
 --------------------------------------------------------------------------------
 
-export
+export covering
 reify : Show a => a -> Maybe Value
 reify = parseValue . show
 
 ||| Try to show a value, prettily. If we do not understand the value, then we
 ||| just use its standard 'Show' instance.
-export
+export covering
 ppDoc : Show a => a -> Doc ann
 ppDoc a = let txt = show a
            in maybe (fromString txt) valToDoc (parseValue txt)
 
 ||| Convert a generic value into a pretty 'String', if possible.
-export
+export covering
 ppShow : Show a => a -> String
 ppShow = show . ppDoc {ann = ()}
 
 ||| Pretty print something that may be converted to a list as a list.
 ||| Each entry is on a separate line, which means that we don't do clever
 ||| pretty printing, and so this works well for large strucutures.
-export
+export covering
 ppDocList : (Foldable f, Show a) => f a -> Doc ann
 ppDocList = blockWith vcat '[' ']' . map ppDoc . toList
 
 ||| Pretty print something that may be converted to a list as a list.
 ||| Each entry is on a separate line, which means that we don't do clever
 ||| pretty printing, and so this works well for large strucutures.
-export
+export covering
 ppShowList : (Foldable f, Show a) => f a -> String
 ppShowList = show . ppDocList {ann = ()}
 
 
 ||| Pretty print a generic value to stdout.
-export
+export covering
 pPrint : Show a => a -> IO ()
 pPrint = putStrLn . ppShow
 
 ||| Pretty print something that may be converted to a list as a list.
 ||| Each entry is on a separate line, which means that we don't do clever
 ||| pretty printing, and so this works well for large strucutures.
-export
+export covering
 pPrintList : (Foldable f, Show a) => f a -> IO ()
 pPrintList = putStrLn . ppShowList
 
