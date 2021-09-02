@@ -97,7 +97,7 @@ binOp op pvx pvy =
 |||
 ||| If the boolean flag is true, then we also hide
 ||| constructors all of whose fields were hidden.
-public export
+public export covering
 hideCon : Bool -> (Name -> Bool) -> Value -> Value
 hideCon collapse hidden = toVal . delMaybe
   where
@@ -108,6 +108,7 @@ hideCon collapse hidden = toVal . delMaybe
   toVal = fromMaybe hiddenV
 
   mutual
+    covering
     delMany : (Functor f, Foldable f) => f Value -> Maybe (f Value)
     delMany vals =
       let newVals = map delMaybe vals
@@ -115,6 +116,7 @@ hideCon collapse hidden = toVal . delMaybe
             then Nothing
             else Just (map toVal newVals)
 
+    covering
     delMaybe : Value -> Maybe Value
     delMaybe val =
       case val of

@@ -187,12 +187,12 @@ PrettyVal a => PrettyVal (PreProc a) where
   prettyVal (MkPreProc p v) = p (prettyVal v)
 
 ||| Hide the given constructors when showing a value.
-export
+export covering
 ppHide : (Name -> Bool) -> a -> PreProc a
 ppHide p = MkPreProc (hideCon False p)
 
 ||| Hide the given constructors when showing a value.
 ||| In addition, hide values if all of their children were hidden.
-export
+export covering
 ppHideNested : (Name -> Bool) -> a -> PreProc a
 ppHideNested p = MkPreProc (hideCon True p)
