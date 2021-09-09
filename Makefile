@@ -4,24 +4,36 @@ lib_pkg = pretty-show.ipkg
 
 test_pkg = test.ipkg
 
-.PHONY: all lib install clean clean-install test develop
-
+.PHONY: all
 all: lib test
 
+.PHONY: clean-install
 clean-install: clean install
 
+.PHONY: clean-install-with-src
+clean-install-with-src: clean install-with-src
+
+.PHONY: lib
 lib:
 	${IDRIS2} --build ${lib_pkg}
 
+.PHONY: test
 test:
 	${IDRIS2} --build ${test_pkg} && build/exec/runTest
 
+.PHONY: install
 install:
 	${IDRIS2} --install ${lib_pkg}
 
+.PHONY: install-with-src
+install-with-src:
+	${IDRIS2} --install-with-src ${lib_pkg}
+
+.PHONY: clean
 clean:
 	${IDRIS2} --clean ${lib_pkg}
 	${RM} -r build
 
+.PHONY: develop
 develop:
 	find -name "*.idr" | entr -d idris2 --typecheck ${lib_pkg}
