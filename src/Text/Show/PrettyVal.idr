@@ -228,6 +228,8 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 
 %runElab derive "Namespace" [PrettyVal]
 
+%runElab derive "UserName" [PrettyVal]
+
 %runElab derive "Language.Reflection.TT.Name" [PrettyVal]
 
 %runElab derive "Count" [PrettyVal]
