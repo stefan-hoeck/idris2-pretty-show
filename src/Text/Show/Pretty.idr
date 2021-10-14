@@ -52,7 +52,6 @@ toDoc val =
     Dbl x              => pretty x
     Chr x              => pretty x
     Str x              => pretty x
-    _                  => neutral
 
   where
     atom : Value -> Doc ann
