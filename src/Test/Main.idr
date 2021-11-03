@@ -15,4 +15,3 @@ main = do
 
      else putStrLn (foreground Red "\n\nSome tests failed") >>
           exitFailure
-

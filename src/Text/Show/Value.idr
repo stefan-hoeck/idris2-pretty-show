@@ -278,7 +278,7 @@ EmptyRule : Type -> Type
 EmptyRule = Grammar () ShowToken False
 
 constant : Rule Value
-constant = terminal "Expected constant" $ 
+constant = terminal "Expected constant" $
                      \case CharLit c    => Just $ Chr c
                            DblLit d     => Just $ Dbl d
                            StringLit s  => Just $ Str s
@@ -286,22 +286,22 @@ constant = terminal "Expected constant" $
                            _            => Nothing
 
 identRule : Rule Name
-identRule = terminal "Expected identifier" $ 
+identRule = terminal "Expected identifier" $
                      \case Ident s => Just $ MkName s
                            _       => Nothing
 
 operator : Rule Name
-operator = terminal "Expected operator" $ 
+operator = terminal "Expected operator" $
                     \case Op s => Just $ MkName s
                           _    => Nothing
 
 minus : Rule ()
-minus = terminal "Expected minus sign" $ 
+minus = terminal "Expected minus sign" $
                  \case Op "-" => Just ()
                        _      => Nothing
 
 symbol : String -> Rule ()
-symbol s = terminal ("Expected " ++ s) $ 
+symbol s = terminal ("Expected " ++ s) $
                     \case Symbol s2 => if s == s2 then Just ()
                                                   else Nothing
                           _         => Nothing
