@@ -94,5 +94,3 @@ jobs:
           path: /root/.idris2/
       - name: Build lib
         run: make lib
-      - name: Build docs
-        run: make docs
