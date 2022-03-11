@@ -224,6 +224,8 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 
 %runElab derive "NameType" [PrettyVal]
 
+%runElab derive "PrimType" [PrettyVal]
+
 %runElab derive "Constant" [PrettyVal]
 
 %runElab derive "Namespace" [PrettyVal]
