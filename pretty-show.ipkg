@@ -1,6 +1,7 @@
 package pretty-show
 
 authors    = "stefan-hoeck"
+brief      = "Pretty printing of values with a Show instance"
 sourcedir  = "src"
 version    = 0.5.0
 depends    = base      >= 0.5.1
