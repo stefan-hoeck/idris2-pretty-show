@@ -20,7 +20,6 @@ defaults:
     shell: bash
 
 jobs:
-
   dependencies:
     name: Install ${{ matrix.lib }} for Idris2 latest
     runs-on: ubuntu-latest
