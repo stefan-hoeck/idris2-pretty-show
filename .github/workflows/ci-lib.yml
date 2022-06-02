@@ -24,6 +24,8 @@ jobs:
     name: Build ${{ github.repository }} with Idris2 latest
     runs-on: ubuntu-latest
     container: snazzybucket/idris2api:latest
+    strategy:
+      fail-fast: false
     steps:
       - name: Checkout elab-util
         uses: actions/checkout@v2
@@ -39,10 +41,5 @@ jobs:
         run: make install
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Download installed dependencies
-        uses: actions/download-artifact@master
-        with:
-          name: dependencies-for-latest
-          path: /root/.idris2/
       - name: Build lib
         run: make lib
