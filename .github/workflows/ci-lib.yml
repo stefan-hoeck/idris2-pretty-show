@@ -22,7 +22,7 @@ defaults:
 jobs:
 
   dependencies:
-    name: Install ${{ matrix.lib }} for ${{ matrix.idris-version }}
+    name: Install ${{ matrix.lib }} for Idris2 latest
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 1 # We need sequential run!
@@ -30,9 +30,7 @@ jobs:
         lib:
           - elab-util
           - sop
-        idris-version:
-          - latest
-    container: snazzybucket/idris2api:${{ matrix.idris-version }}
+    container: snazzybucket/idris2api:latest
     steps:
       - name: Checkout ${{ matrix.lib }}
         uses: actions/checkout@v2
@@ -41,7 +39,7 @@ jobs:
       - name: Download already installed dependencies
         uses: actions/download-artifact@master
         with:
-          name: dependencies-for-${{ matrix.idris-version }}
+          name: dependencies-for-latest
           path: /root/.idris2/
         continue-on-error: true
       - name: Make ${{ matrix.lib }}
@@ -51,28 +49,23 @@ jobs:
       - name: Save installed lib
         uses: actions/upload-artifact@master
         with:
-          name: dependencies-for-${{ matrix.idris-version }}
+          name: dependencies-for-latest
           path: /root/.idris2/idris2-*/${{ matrix.lib }}*
           if-no-files-found: error
 
   build:
-    name: Build ${{ github.repository }} with ${{ matrix.idris-version }}
+    name: Build ${{ github.repository }} with Idris2 latest
     needs:
       - dependencies
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        idris-version:
-          - latest
-    container: snazzybucket/idris2api:${{ matrix.idris-version }}
+    container: snazzybucket/idris2api:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Download installed dependencies
         uses: actions/download-artifact@master
         with:
-          name: dependencies-for-${{ matrix.idris-version }}
+          name: dependencies-for-latest
           path: /root/.idris2/
       - name: Build lib
         run: make lib
