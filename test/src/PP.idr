@@ -1,4 +1,4 @@
-module Test.PP
+module PP
 
 import Text.PrettyPrint.Prettyprinter
 import Text.Show.Pretty

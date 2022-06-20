@@ -1,0 +1,9 @@
+[custom.all.pretty-show]
+type   = "local"
+path   = "."
+ipkg   = "pretty-show.ipkg"
+
+[custom.all.pretty-show-test]
+type   = "local"
+path   = "test"
+ipkg   = "test.ipkg"

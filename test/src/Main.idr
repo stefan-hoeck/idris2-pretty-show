@@ -1,9 +1,9 @@
-module Test.Main
+module Main
 
 import Control.ANSI.SGR
 import Test.Mini
-import Test.Parser
-import Test.PP
+import Parser
+import PP
 import System
 
 main : IO ()
