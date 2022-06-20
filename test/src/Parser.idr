@@ -1,4 +1,4 @@
-module Test.Parser
+module Parser
 
 import Data.List
 import Text.Show.Pretty

@@ -1,0 +1,14 @@
+package pretty-show-test
+
+authors    = "stefan-hoeck"
+sourcedir  = "src"
+version    = 0.5.0
+depends    = base      >= 0.5.1
+           , contrib
+           , elab-util
+           , sop
+           , pretty-show
+
+executable = runTest
+
+main = Main
