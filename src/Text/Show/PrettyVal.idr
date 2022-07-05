@@ -202,7 +202,7 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 
 -- System
 
-%runElab derive "Mode" [PrettyVal]
+%runElab derive "System.File.Mode.Mode" [PrettyVal]
 
 %runElab derive "FileError" [PrettyVal]
 
