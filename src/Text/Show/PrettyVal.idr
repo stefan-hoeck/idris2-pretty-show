@@ -234,8 +234,6 @@ POP (PrettyVal . f) kss => PrettyVal (SOP_ k f kss) where
 
 %runElab derive "Language.Reflection.TT.Name" [PrettyVal]
 
-%runElab derive "NoMangleDirective" [PrettyVal]
-
 %runElab derive "Count" [PrettyVal]
 
 %runElab derive "PiInfo" [PrettyVal]
