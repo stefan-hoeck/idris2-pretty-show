@@ -3,11 +3,11 @@ package pretty-show
 authors    = "stefan-hoeck"
 brief      = "Pretty printing of values with a Show instance"
 sourcedir  = "src"
-version    = 0.5.0
-depends    = base      >= 0.5.1
-           , contrib   >= 0.5.1
-           , elab-util >= 0.5.0
-           , sop       >= 0.5.0
+version    = 0.6.0
+depends    = base      >= 0.6.0
+           , contrib
+           , elab-util
+           , sop
 
 modules = Text.Show.Diff
         , Text.Show.Pretty

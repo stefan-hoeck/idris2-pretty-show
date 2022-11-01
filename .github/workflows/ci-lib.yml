@@ -10,8 +10,6 @@ on:
   pull_request:
     branches:
       - main
-  schedule:
-    - cron: '0 1 * * *'
 
 defaults:
   run:
@@ -32,4 +30,4 @@ jobs:
       - name: Build lib
         run: pack install pretty-show
       - name: Run test
-        run: pack run pretty-show-test
+        run: pack test pretty-show
