@@ -2,6 +2,7 @@
 type   = "local"
 path   = "."
 ipkg   = "pretty-show.ipkg"
+test   = "test/test.ipkg"
 
 [custom.all.pretty-show-test]
 type   = "local"

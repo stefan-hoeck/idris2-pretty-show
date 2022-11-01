@@ -2,13 +2,9 @@ package pretty-show-test
 
 authors    = "stefan-hoeck"
 sourcedir  = "src"
-version    = 0.5.0
-depends    = base      >= 0.5.1
-           , contrib
-           , elab-util
-           , sop
-           , pretty-show
+version    = 0.6.0
+depends    = pretty-show
 
-executable = runTest
+executable = pretty-show-test
 
 main = Main
