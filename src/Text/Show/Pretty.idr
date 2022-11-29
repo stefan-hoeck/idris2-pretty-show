@@ -5,6 +5,7 @@ import Text.PrettyPrint.Prettyprinter
 
 import public Text.Show.Value
 import public Text.Show.PrettyVal
+import public Text.Show.PrettyVal.Derive
 
 %default total
 
@@ -66,10 +67,10 @@ toDoc val =
     infixAtom : Value -> Doc ann
     infixAtom v = if isInfixAtom v then toDoc v else parens (toDoc v)
 
-    field : (Name,Value) -> Doc ann
+    field : (VName,Value) -> Doc ann
     field (x,v) = hangAfter (pretty x <++> pretty '=') 2 (toDoc v)
 
-    fields : List (Name,Value) -> List (Doc ann)
+    fields : List (VName,Value) -> List (Doc ann)
     fields []        = []
     fields (p :: ps) = field p :: fields ps
 
@@ -77,7 +78,7 @@ toDoc val =
     docs []        = []
     docs (x :: xs) = toDoc x :: docs xs
 
-    infx : Value -> List (Name,Value) -> List (Doc ann)
+    infx : Value -> List (VName,Value) -> List (Doc ann)
     infx v []             = [infixAtom v]
     infx v ((n,v2)::cvs') = (infixAtom v <++> pretty n) :: infx v2 cvs'
 
@@ -187,11 +188,11 @@ PrettyVal a => PrettyVal (PreProc a) where
 
 ||| Hide the given constructors when showing a value.
 export covering
-ppHide : (Name -> Bool) -> a -> PreProc a
+ppHide : (VName -> Bool) -> a -> PreProc a
 ppHide p = MkPreProc (hideCon False p)
 
 ||| Hide the given constructors when showing a value.
 ||| In addition, hide values if all of their children were hidden.
 export covering
-ppHideNested : (Name -> Bool) -> a -> PreProc a
+ppHideNested : (VName -> Bool) -> a -> PreProc a
 ppHideNested p = MkPreProc (hideCon True p)

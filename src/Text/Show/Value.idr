@@ -2,12 +2,10 @@ module Text.Show.Value
 
 import Data.Vect
 import Data.List1
-import Generics.Derive
+import Derive.Prelude
 import Text.Lexer
 import Text.Parser
 import Text.PrettyPrint.Prettyprinter
-
-%hide Language.Reflection.TT.Name
 
 %language ElabReflection
 
@@ -15,17 +13,21 @@ import Text.PrettyPrint.Prettyprinter
 
 ||| A name.
 public export
-record Name where
+record VName where
   constructor MkName
   unName : String
 
-%runElab derive "Text.Show.Value.Name" [Generic,Meta,Show,Eq,Ord,Semigroup]
+%runElab derive "Text.Show.Value.VName" [Show,Eq,Ord]
 
 public export
-FromString Name where fromString = MkName
+Semigroup VName where
+  x <+> y = MkName $ x.unName <+> y.unName
 
 public export
-Pretty Name where
+FromString VName where fromString = MkName
+
+public export
+Pretty VName where
   pretty = pretty . unName
 
 ||| Generic Idris values.
@@ -38,9 +40,9 @@ Pretty Name where
 |||
 ||| `1 :+: (2 :*: 3)` is represented with `InfixCons 1 [(":+:",InfixCons 2 [(":*:",3)])]`.
 public export
-data Value = Con Name (List Value)
-           | InfixCons Value (List (Name,Value))
-           | Rec Name (List (Name,Value))
+data Value = Con VName (List Value)
+           | InfixCons Value (List (VName,Value))
+           | Rec VName (List (VName,Value))
            | Tuple Value Value (List Value) -- At least two values
            | Lst (List Value)
            | Neg Value
@@ -49,13 +51,7 @@ data Value = Con Name (List Value)
            | Chr String
            | Str String
 
-%runElab derive "Value" [Generic,Meta]
-
-export
-Eq Value where (==) = assert_total genEq
-
-export
-Show Value where showPrec = assert_total genShowPrec
+%runElab derive "Value" [Show, Eq]
 
 export
 depth : Value -> Nat
@@ -83,7 +79,7 @@ depth v = case v of
 ||| If the same operator appears several times in a row,
 ||| this is treated as a list of infix constructors.
 public export
-binOp : Name -> Value -> Value -> Value
+binOp : VName -> Value -> Value -> Value
 binOp op pvx pvy =
    case pvy of
         InfixCons pv1 pairs@((op2, pv2) :: xs) =>
@@ -98,7 +94,7 @@ binOp op pvx pvy =
 ||| If the boolean flag is true, then we also hide
 ||| constructors all of whose fields were hidden.
 public export covering
-hideCon : Bool -> (Name -> Bool) -> Value -> Value
+hideCon : Bool -> (VName -> Bool) -> Value -> Value
 hideCon collapse hidden = toVal . delMaybe
   where
   hiddenV : Value
@@ -200,7 +196,7 @@ data ShowToken = StringLit String
                | Op        String
                | Space     String
 
-%runElab derive "ShowToken" [Generic,Meta,Show,Eq]
+%runElab derive "ShowToken" [Show,Eq]
 
 holeIdent : Lexer
 holeIdent = is '?' <+> identNormal
@@ -252,7 +248,7 @@ data Err = LexErr Int Int String
          | ParseErr String
          | EOIErr (List $ WithBounds ShowToken)
 
-%runElab derive "Err" [Generic,Meta,Show,Eq]
+%runElab derive "Err" [Show,Eq]
 
 export
 lex : String -> Either Err (List $ WithBounds ShowToken)
@@ -285,12 +281,12 @@ constant = terminal "Expected constant" $
                            NatLit s     => Just $ Natural s
                            _            => Nothing
 
-identRule : Rule Name
+identRule : Rule VName
 identRule = terminal "Expected identifier" $
                      \case Ident s => Just $ MkName s
                            _       => Nothing
 
-operator : Rule Name
+operator : Rule VName
 operator = terminal "Expected operator" $
                     \case Op s => Just $ MkName s
                           _    => Nothing
@@ -321,7 +317,7 @@ brackets g = symbol "[" *> g <* symbol "]"
 braces : {c : _} -> Inf (Grammar () ShowToken c a) -> Rule a
 braces g = symbol "{" *> g <* symbol "}"
 
-identOrOp : Rule Name
+identOrOp : Rule VName
 identOrOp = identRule <|>
             map (\(MkName n) => MkName ("(" ++ n ++ ")")) (parens operator)
 
@@ -365,7 +361,7 @@ mutual
   list = Lst <$> brackets (sepBy comma value)
 
   covering
-  pair : Rule (Name,Value)
+  pair : Rule (VName,Value)
   pair = [| (,) identOrOp (equals *> value) |]
 
   covering
@@ -379,7 +375,7 @@ mutual
   covering
   infx : Rule Value
   infx = uncurry InfixCons <$> go
-    where go : Rule (Value,List (Name,Value))
+    where go : Rule (Value,List (VName,Value))
           go = do v    <- applied
                   op   <- operator
                   map (\(v2,ps) => (v,(op,v2) :: ps)) go <|>
