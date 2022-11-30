@@ -30,11 +30,6 @@ other con = Con (MkName con)
 --          Claims
 --------------------------------------------------------------------------------
 
-||| Name of the top-level function implementing the derived prettyVal function.
-public export
-(.prettyValName) : Named a => a -> Name
-v.prettyValName = UN $ Basic "prettyVal\{v.nameStr}"
-
 ||| General type of a `prettyVal` function with the given list
 ||| of implicit and auto-implicit arguments, plus the given argument type
 ||| to be displayed.
@@ -45,20 +40,15 @@ generalPrettyValType is arg = piAll `(~(arg) -> Value) is
 ||| Top-level function declaration implementing the `prettyVal` function for
 ||| the given data type.
 export
-prettyValClaim : (p : ParamTypeInfo) -> Decl
-prettyValClaim p =
+prettyValClaim : (fun : Name) -> (p : ParamTypeInfo) -> Decl
+prettyValClaim fun p =
   let tpe := generalPrettyValType (allImplicits p "PrettyVal") p.applied
-   in public' p.prettyValName tpe
-
-||| Name of the derived interface implementation.
-public export
-(.prettyValImplName) : Named a => a -> Name
-v.prettyValImplName = UN $ Basic "prettyValImpl\{v.nameStr}"
+   in public' fun tpe
 
 ||| Top-level declaration of the `PrettyVal` implementation for the given data type.
 export
-prettyValImplClaim : (p : ParamTypeInfo) -> Decl
-prettyValImplClaim p = implClaim p.prettyValImplName (implType "PrettyVal" p)
+prettyValImplClaim : (impl : Name) -> (p : ParamTypeInfo) -> Decl
+prettyValImplClaim impl p = implClaim impl (implType "PrettyVal" p)
 
 --------------------------------------------------------------------------------
 --          Definitions
@@ -66,68 +56,48 @@ prettyValImplClaim p = implClaim p.prettyValImplName (implType "PrettyVal" p)
 
 ||| Top-level definition of the `PrettyVal` implementation for the given data type.
 export
-prettyValImplDef : Named a => a -> Decl
-prettyValImplDef p =
-  def p.prettyValImplName
-    [var p.prettyValImplName .= var "MkPrettyVal" .$ var p.prettyValName]
+prettyValImplDef : (fun, impl : Name) -> Decl
+prettyValImplDef f i = def i [var i .= var "MkPrettyVal" .$ var f]
 
 parameters (nms : List Name)
+  ttimp : BoundArg 1 Explicit -> TTImp
+  ttimp (BA (MkArg M0 _ _ _) _   _) = `(Chr "_")
+  ttimp (BA (MkArg _  _ _ t) [x] _) = assertIfRec nms t `(prettyVal ~(var x))
 
-  namedRHS :
-       Name
-    -> SnocList TTImp
-    -> (as : Vect n Arg)
-    -> (ns : Vect n Name)
-    -> TTImp
-  namedRHS n st (MkArg M0 ExplicitArg (Just nm) _ :: xs) (y :: ys) =
-    let str := primVal (Str "\{nameStr nm}")
-        t   := `(MkPair (Chr "_") ~(str))
-     in namedRHS n (st :< t) xs ys
-  namedRHS n st (MkArg _  ExplicitArg (Just nm) t :: xs) (y :: ys) =
-    let prettyValn := assertIfRec nms t `(prettyVal ~(var y))
-        str   := primVal (Str "\{nameStr nm}")
-        t     := `(MkPair ~(prettyValn) ~(str))
-     in namedRHS n (st :< t) xs ys
-  namedRHS n st (_ :: xs) (_ :: ys) = namedRHS n st xs ys
-  namedRHS n Lin      [] [] = `(Con (MkName ~(n.namePrim)) [])
-  namedRHS n sx       [] [] =
-    let args := foldr (\e,acc => `(~(e) :: ~(acc))) `(Prelude.Nil) sx
-     in `(rec ~(n.namePrim) ~(args))
+  rsh : Name -> SnocList TTImp -> TTImp
+  rsh n st = `(other ~(n.namePrim) ~(listOf st))
 
-  -- Right-hand side of a single prettyVal clause.
-  -- String conversion for a set of constructor arguments.
-  -- Checks if the argument types are safely recursive, that is, contains
-  -- one of the data type names listed in `nms`. If so, prefixes
-  -- the generated function call with `assert_total`.
-  rhs : Name -> SnocList TTImp -> Vect n Arg -> Vect n Name -> TTImp
-  rhs n st (x :: xs) (y :: ys) = case isExplicit x of
-    True  => case x.count of
-      M0 => primVal (Str " _")
-      _  => let t := assertIfRec nms x.type `(prettyVal ~(var y))
-             in rhs n (st :< t) xs ys
-    False => rhs n st xs ys
-  rhs n Lin []        [] = `(Con (MkName ~(n.namePrim)) [])
-  rhs n sx  []        [] =
-    let args := foldr (\e,acc => `(~(e) :: ~(acc))) `(Prelude.Nil) sx
-     in `(other ~(n.namePrim) ~(args))
+  nttimp : BoundArg 1 NamedExplicit -> TTImp
+  nttimp (BA a [x]   _) =
+    let nm := (argName a).namePrim
+     in case a.count of
+       M0 => `(MkPair ~(nm) (Chr "_"))
+       _  =>
+         let pv := assertIfRec nms a.type `(prettyVal ~(var x))
+          in `(MkPair ~(pv) ~(nm))
+
+  nrsh : Name -> SnocList TTImp -> TTImp
+  nrsh n st  = `(rec ~(n.namePrim) ~(listOf st))
 
   export
-  prettyValClauses : (fun : Maybe Name) -> TypeInfo -> List Clause
-  prettyValClauses fun ti =
-    let b := namedType ti
-     in map (clause b) ti.cons
-    where clause : Bool -> Con ti.arty ti.args -> Clause
-          clause b c =
+  pvClauses : (fun : Maybe Name) -> TypeInfo -> List Clause
+  pvClauses fun ti = map clause ti.cons
+    where clause : Con ti.arty ti.args -> Clause
+          clause c =
             let ns  := freshNames "x" c.arty
                 bc  := bindCon c ns
                 lhs := maybe bc ((.$ bc) . var) fun
-             in lhs .=
-                  if b then namedRHS c.name Lin c.args ns
-                       else rhs c.name Lin c.args ns
+             in case all namedArg c.args of
+                  True =>
+                    let st := nttimp <$> boundArgs namedExplicit c.args [ns]
+                     in lhs .= nrsh c.name st
+                  False =>
+                    let st := ttimp <$> boundArgs explicit c.args [ns]
+                     in lhs .= rsh c.name st
 
   export
   prettyValDef : Name -> TypeInfo -> Decl
-  prettyValDef fun ti = def fun (prettyValClauses (Just fun) ti)
+  prettyValDef fun ti = def fun (pvClauses (Just fun) ti)
 
 --------------------------------------------------------------------------------
 --          Deriving
@@ -147,7 +117,7 @@ derivePrettyVal = do
   ti <- getInfo' nm
 
   let impl :=  lambdaArg {a = Name} "x"
-           .=> iCase `(x) implicitFalse (prettyValClauses [ti.name] Nothing ti)
+           .=> iCase `(x) implicitFalse (pvClauses [ti.name] Nothing ti)
 
   logMsg "derive.definitions" 1 $ show impl
   check $ var "MkPrettyVal" .$ impl
@@ -156,9 +126,11 @@ derivePrettyVal = do
 export
 PrettyVal : List Name -> ParamTypeInfo -> List TopLevel
 PrettyVal nms p =
-  [ TL (prettyValClaim p) (prettyValDef nms p.prettyValName p.info)
-  , TL (prettyValImplClaim p) (prettyValImplDef p)
-  ]
+  let fun  := funName p "prettyVal"
+      impl := implName p "PrettyVal"
+   in [ TL (prettyValClaim fun p) (prettyValDef nms fun p.info)
+      , TL (prettyValImplClaim impl p) (prettyValImplDef fun impl)
+      ]
 
 %runElab derive "Bool" [PrettyVal]
 
