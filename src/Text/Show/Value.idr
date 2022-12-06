@@ -17,14 +17,7 @@ record VName where
   constructor MkName
   unName : String
 
-%runElab derive "Text.Show.Value.VName" [Show,Eq,Ord]
-
-public export
-Semigroup VName where
-  x <+> y = MkName $ x.unName <+> y.unName
-
-public export
-FromString VName where fromString = MkName
+%runElab derive "VName" [Show,Eq,Ord,FromString,Semigroup,Monoid]
 
 public export
 Pretty VName where
