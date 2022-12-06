@@ -60,40 +60,36 @@ prettyValImplDef : (fun, impl : Name) -> Decl
 prettyValImplDef f i = def i [var i .= var "MkPrettyVal" .$ var f]
 
 parameters (nms : List Name)
-  ttimp : BoundArg 1 Explicit -> TTImp
-  ttimp (BA (MkArg M0 _ _ _) _   _) = `(Chr "_")
-  ttimp (BA (MkArg _  _ _ t) [x] _) = assertIfRec nms t `(prettyVal ~(var x))
+  arg : BoundArg 1 Explicit -> TTImp
+  arg (BA (MkArg M0 _ _ _) _   _) = `(Chr "_")
+  arg (BA (MkArg _  _ _ t) [x] _) = assertIfRec nms t `(prettyVal ~(x))
 
-  rsh : Name -> SnocList TTImp -> TTImp
-  rsh n st = `(other ~(n.namePrim) ~(listOf st))
+  rhs : Name -> SnocList TTImp -> TTImp
+  rhs n st = `(other ~(n.namePrim) ~(listOf st))
 
-  nttimp : BoundArg 1 NamedExplicit -> TTImp
-  nttimp (BA a [x]   _) =
+  narg : BoundArg 1 NamedExplicit -> TTImp
+  narg (BA a [x]   _) =
     let nm := (argName a).namePrim
      in case a.count of
        M0 => `(MkPair ~(nm) (Chr "_"))
        _  =>
-         let pv := assertIfRec nms a.type `(prettyVal ~(var x))
+         let pv := assertIfRec nms a.type `(prettyVal ~(x))
           in `(MkPair ~(pv) ~(nm))
 
-  nrsh : Name -> SnocList TTImp -> TTImp
-  nrsh n st  = `(rec ~(n.namePrim) ~(listOf st))
+  nrhs : Name -> SnocList TTImp -> TTImp
+  nrhs n st  = `(rec ~(n.namePrim) ~(listOf st))
 
   export
   pvClauses : (fun : Maybe Name) -> TypeInfo -> List Clause
   pvClauses fun ti = map clause ti.cons
-    where clause : Con ti.arty ti.args -> Clause
-          clause c =
-            let ns  := freshNames "x" c.arty
-                bc  := bindCon c ns
-                lhs := maybe bc ((.$ bc) . var) fun
-             in case all namedArg c.args of
-                  True =>
-                    let st := nttimp <$> boundArgs namedExplicit c.args [ns]
-                     in lhs .= nrsh c.name st
-                  False =>
-                    let st := ttimp <$> boundArgs explicit c.args [ns]
-                     in lhs .= rsh c.name st
+    where
+      lhs : TTImp -> TTImp
+      lhs bc = maybe bc ((.$ bc) . var) fun
+
+      clause : Con ti.arty ti.args -> Clause
+      clause c = case all namedArg c.args of
+        True  => accumArgs namedExplicit lhs (nrhs c.name) narg c
+        False => accumArgs explicit lhs (rhs c.name) arg c
 
   export
   prettyValDef : Name -> TypeInfo -> Decl
@@ -124,13 +120,13 @@ derivePrettyVal = do
 
 ||| Generate declarations and implementations for `PrettyVal` for a given data type.
 export
-PrettyVal : List Name -> ParamTypeInfo -> List TopLevel
+PrettyVal : List Name -> ParamTypeInfo -> Res (List TopLevel)
 PrettyVal nms p =
   let fun  := funName p "prettyVal"
       impl := implName p "PrettyVal"
-   in [ TL (prettyValClaim fun p) (prettyValDef nms fun p.info)
-      , TL (prettyValImplClaim impl p) (prettyValImplDef fun impl)
-      ]
+   in Right [ TL (prettyValClaim fun p) (prettyValDef nms fun p.info)
+            , TL (prettyValImplClaim impl p) (prettyValImplDef fun impl)
+            ]
 
 %runElab derive "Bool" [PrettyVal]
 
