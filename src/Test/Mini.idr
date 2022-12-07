@@ -3,7 +3,7 @@
 module Test.Mini
 
 import Control.ANSI.SGR
-import Generics.Derive
+import Derive.Prelude
 import Text.Show.Pretty
 
 %language ElabReflection
@@ -21,7 +21,7 @@ namespace Success
     input  : i
     result : o
 
-  %runElab derive "Success" [Generic,Meta,Show,Eq,PrettyVal]
+  %runElab derive "Success" [Show,Eq,PrettyVal]
 
 namespace Failure
 
@@ -33,7 +33,7 @@ namespace Failure
     result   : o
     expected : o
 
-  %runElab derive "Failure" [Generic,Meta,Show,Eq,PrettyVal]
+  %runElab derive "Failure" [Show,Eq,PrettyVal]
 
 
 public export
@@ -42,13 +42,14 @@ record Result i o where
   ok     : List (Success i o)
   failed : List (Failure i o)
 
-%runElab derive "Result" [Generic,Meta,Show,Eq,Semigroup,Monoid]
+%runElab derive "Result" [Show,Eq,PrettyVal]
 
 export
-Semigroup (Result i o) where (<+>) = genAppend
+Semigroup (Result i o) where
+  MkResult o1 f1 <+> MkResult o2 f2 = MkResult (o1 ++ o2) (f1 ++ f2)
 
 export
-Monoid (Result i o) where neutral = genNeutral
+Monoid (Result i o) where neutral = MkResult [] []
 
 --------------------------------------------------------------------------------
 --          Running Tests

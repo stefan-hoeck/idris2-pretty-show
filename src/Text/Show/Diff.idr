@@ -1,10 +1,8 @@
 module Text.Show.Diff
 
 import Data.Vect
-import Generics.Derive
+import Derive.Prelude
 import public Text.Show.Pretty
-
-%hide Language.Reflection.TT.Name
 
 %language ElabReflection
 
@@ -15,20 +13,14 @@ import public Text.Show.Pretty
 --------------------------------------------------------------------------------
 
 public export
-data ValueDiff = Con Name (List ValueDiff)
-               | Rec Name (List (Name, ValueDiff))
+data ValueDiff = Con VName (List ValueDiff)
+               | Rec VName (List (VName, ValueDiff))
                | Tuple ValueDiff ValueDiff (List ValueDiff)
                | Lst (List ValueDiff)
                | Same Value
                | Diff Value Value
 
-%runElab derive "ValueDiff" [Generic,Meta]
-
-export
-Eq ValueDiff where (==) = assert_total genEq
-
-export
-Show ValueDiff where showPrec = assert_total genShowPrec
+%runElab derive "ValueDiff" [Show,Eq,PrettyVal]
 
 namespace ValueDiff
   export
@@ -54,7 +46,7 @@ data LineDiff = LineSame String
               | LineRemoved String
               | LineAdded String
 
-%runElab derive "LineDiff" [Generic,Meta,Show,Eq]
+%runElab derive "LineDiff" [Show,Eq,PrettyVal]
 
 public export
 data DocDiff = DocSame Nat String
@@ -64,13 +56,7 @@ data DocDiff = DocSame Nat String
              | DocItem Nat String (List DocDiff)
              | DocClose Nat String
 
-%runElab derive "DocDiff" [Generic,Meta]
-
-export
-Eq DocDiff where (==) = assert_total genEq
-
-export
-Show DocDiff where showPrec = assert_total genShowPrec
+%runElab derive "DocDiff" [Show,Eq,PrettyVal]
 
 namespace DocDiff
   export
@@ -163,7 +149,7 @@ added ind = map (DocAdded ind) . lines
 same : (indent: Nat) -> String -> List DocDiff
 same ind = map (DocSame ind) . lines
 
-sameN : (indent: Nat) -> Name -> List DocDiff
+sameN : (indent: Nat) -> VName -> List DocDiff
 sameN ind = same ind . unName
 
 remAdd : (indent : Nat) -> Value -> Value -> List DocDiff

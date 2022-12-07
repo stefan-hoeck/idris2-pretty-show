@@ -7,11 +7,11 @@ version    = 0.6.0
 depends    = base      >= 0.6.0
            , contrib
            , elab-util
-           , sop
 
 modules = Text.Show.Diff
         , Text.Show.Pretty
         , Text.Show.PrettyVal
+        , Text.Show.PrettyVal.Derive
         , Text.Show.Value
 
         , Test.Mini
