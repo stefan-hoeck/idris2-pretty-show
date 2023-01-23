@@ -2,7 +2,8 @@ module Text.Show.PrettyVal.Derive
 
 import System.Clock
 import System.File
-import Text.Lexer
+import Text.Lex
+import Text.Parse
 import Text.Show.PrettyVal
 import Text.Show.Value
 import public Derive.Show
@@ -146,13 +147,21 @@ PrettyVal nms p =
 
 %runElab derive "Value" [PrettyVal]
 
-%runElab derive "ShowToken" [PrettyVal]
+%runElab derive "Text.Show.Value.Token" [PrettyVal]
 
-%runElab derive "Bounds" [PrettyVal]
+%runElab derive "Text.Lex.Bounded.Bounds" [PrettyVal]
 
-%runElab derive "WithBounds" [PrettyVal]
+%runElab derive "Text.Lex.Bounded.Bounded" [PrettyVal]
 
-%runElab derive "Err" [PrettyVal]
+%runElab derive "Text.Lex.Tokenizer.StopReason" [PrettyVal]
+
+%runElab derive "Text.Parse.FC.Origin" [PrettyVal]
+
+%runElab derive "Text.Parse.FC.FileContext" [PrettyVal]
+
+%runElab derive "Text.Parse.Err.ParseErr" [PrettyVal]
+
+%runElab derive "Text.Parse.Err.ReadError" [PrettyVal]
 
 -- System
 
@@ -174,7 +183,7 @@ PrettyVal nms p =
 
 %runElab derive "OriginDesc" [PrettyVal]
 
-%runElab derive "FC" [PrettyVal]
+%runElab derive "Language.Reflection.TT.FC" [PrettyVal]
 
 %runElab derive "NameType" [PrettyVal]
 

@@ -4,14 +4,12 @@ authors    = "stefan-hoeck"
 brief      = "Pretty printing of values with a Show instance"
 sourcedir  = "src"
 version    = 0.6.0
-depends    = base      >= 0.6.0
-           , contrib
+depends    = elab-pretty
            , elab-util
+           , parser
 
 modules = Text.Show.Diff
         , Text.Show.Pretty
         , Text.Show.PrettyVal
         , Text.Show.PrettyVal.Derive
         , Text.Show.Value
-
-        , Test.Mini

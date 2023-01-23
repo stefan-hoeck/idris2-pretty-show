@@ -1,18 +1,19 @@
 module PP
 
-import Text.PrettyPrint.Prettyprinter
+import Text.PrettyPrint.Bernardy
 import Text.Show.Pretty
 import Test.Mini
 
 doPP : String -> String
-doPP s = maybe "" (show . valToDoc {ann = ()}) $ parseValue s
+doPP = maybe "" (render dfltOpts . valToDoc) . parseValue
 
 testPP : String -> List (String,String) -> IO Bool
-testPP s ps = do putStrLn ("Pretty printing " ++ s)
-                 report $ runEq doPP ps
+testPP s ps = do
+  putStrLn ("Pretty printing " ++ s)
+  report $ runEq doPP ps
 
-pair : a -> (a,a)
-pair x = (x, x)
+pair : String -> (String,String)
+pair x = (x, x ++ "\n")
 
 export
 ppTest : IO Bool
@@ -27,9 +28,9 @@ ppTest = testAll
 
   , testPP "negative" $ map pair ["-12", "-1.233e12", "-0"]
 
-  , testPP "lists" [ ("[1,2,3]", "[ 1 , 2 , 3 ]")
-                   , ("[]", "[]")
-                   , ("['a','b','c']", "[ 'a' , 'b' , 'c' ]")
+  , testPP "lists" [ ("[1,2,3]", "[1, 2, 3]\n")
+                   , ("[]", "[]\n")
+                   , ("['a','b','c']", "['a', 'b', 'c']\n")
                    ]
   , testPP "identifiers" $
       map pair ["Ident", "Foo", "H", "_foo"]

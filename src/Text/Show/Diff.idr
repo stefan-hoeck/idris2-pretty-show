@@ -136,9 +136,10 @@ takeRight : ValueDiff -> Value
 takeRight = take $ \_,y => y
 
 oneLiner : Value -> Bool
-oneLiner x = case lines (valToStr x) of
-               _ :: Nil   => True
-               _          => False
+oneLiner x =
+  case lines (valToStr x) of
+     _ :: Nil   => True
+     _          => False
 
 removed : (indent: Nat) -> String -> List DocDiff
 removed ind = map (DocRemoved ind) . lines
