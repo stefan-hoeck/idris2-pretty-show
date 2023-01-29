@@ -2,8 +2,7 @@ module Parser
 
 import Data.List
 import Test.Mini
-import Text.Lex
-import Text.Parse
+import Text.Parse.Manual
 import Text.Show.Pretty
 
 %default total
@@ -19,7 +18,7 @@ strings : List String
 strings = map show ["0 foo","x y z", "    ", "\t\t"]
 
 chars : List String
-chars = map show ['a','z','A','Z','0','9','\t','ä','ü']
+chars = map show (the (List Char) ['a','z','A','Z','0','9','\t','ä','ü'])
 
 spaceStrs : List String
 spaceStrs = ["   ","\r\n","\n","\t\t \n"]
@@ -49,8 +48,8 @@ mapPairs g = map (mapPair g)
 --          Lexing
 --------------------------------------------------------------------------------
 
-lex : String -> Either (ReadError Token Void) (List Token)
-lex = map (map val) . lexFull Virtual tokens (Space /=)
+lex : String -> Either PSErr (List Token)
+lex = map (map val) . tokens
 
 testLex : String -> List (String, List Token) -> IO Bool
 testLex s ps = do
@@ -73,21 +72,21 @@ spaceTokens : List (String,List Token)
 spaceTokens = mapPairs (const []) spaceStrs
 
 identTokens : List (String,List Token)
-identTokens = mapPairs (pure . Ident) idents
+identTokens = mapPairs (pure . Id . MkName) idents
 
 opTokens : List (String,List Token)
-opTokens = mapPairs (pure . Op) ops
+opTokens = mapPairs (pure . Op . MkName) ops
 
 symb : String -> Token
-symb "(" = ParenO
-symb ")" = ParenC
-symb "[" = BracketO
-symb "]" = BracketC
-symb "{" = BraceO
-symb "}" = BraceC
-symb "," = Comma
-symb "=" = Equals
-symb s   = Op s
+symb "(" = '('
+symb ")" = ')'
+symb "[" = '['
+symb "]" = ']'
+symb "{" = '{'
+symb "}" = '}'
+symb "," = ','
+symb "=" = '='
+symb s   = Op $ MkName s
 
 symbolTokens : List (String,List Token)
 symbolTokens = mapPairs (pure . symb) symbols
@@ -177,7 +176,7 @@ recs2 =
 export
 parseTest : IO Bool
 parseTest = testAll
-  [ testParse "primities" prims
+  [ testParse "primitives" prims
   , testParse "negated" negated
   , testParse "cons arity 1" singleCons
   , testParse "cons arity 2" doubleCons

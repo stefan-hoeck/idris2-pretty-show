@@ -149,6 +149,8 @@ PrettyVal nms p =
 
 %runElab derive "Text.Show.Value.Token" [PrettyVal]
 
+%runElab derive "Text.Show.Value.Err" [PrettyVal]
+
 %runElab derive "Text.Lex.Bounded.Bounds" [PrettyVal]
 
 %runElab derive "Text.Lex.Bounded.Bounded" [PrettyVal]
@@ -159,7 +161,7 @@ PrettyVal nms p =
 
 %runElab derive "Text.Parse.FC.FileContext" [PrettyVal]
 
-%runElab derive "Text.Parse.Err.ParseErr" [PrettyVal]
+%runElab derive "Text.Parse.Err.ParseError" [PrettyVal]
 
 %runElab derive "Text.Parse.Err.ReadError" [PrettyVal]
 

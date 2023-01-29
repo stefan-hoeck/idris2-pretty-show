@@ -3,8 +3,7 @@ module Text.Show.Value
 import Data.List1
 import Data.Vect
 import Derive.Prelude
-import Text.Lex
-import Text.Parse
+import Text.Parse.Manual
 import Text.PrettyPrint.Bernardy
 
 %language ElabReflection
@@ -16,6 +15,10 @@ public export
 record VName where
   constructor MkName
   unName : String
+
+public export
+pack : SnocList Char -> VName
+pack = MkName . pack
 
 %runElab derive "VName" [Show,Eq,Ord,FromString,Semigroup,Monoid]
 
@@ -48,28 +51,6 @@ data Value = Con VName (List Value)
            | Str String
 
 %runElab derive "Value" [Show, Eq]
-
-export
-depth : Value -> Nat
-depth v = case v of
-               (Con x xs)       => S $ maxDepth xs
-               (InfixCons x xs) => S $ maxDepthP xs
-               (Rec x xs)       => S $ maxDepthP xs
-               (Tuple x y xs)   => S . max (depth x) $ max (depth y) (maxDepth xs)
-               (Lst xs)         => S $ maxDepth xs
-               (Neg x)          => S $ depth x
-               (Natural x)      => 0
-               (Dbl x)          => 0
-               (Chr x)          => 0
-               (Str x)          => 0
-
-  where maxDepth : List Value -> Nat
-        maxDepth []       = 0
-        maxDepth (h :: t) = max (depth h) (maxDepth t)
-
-        maxDepthP : List (a,Value) -> Nat
-        maxDepthP []           = 0
-        maxDepthP ((_,h) :: t) = max (depth h) (maxDepthP t)
 
 ||| Displays an applied binary operator.
 ||| If the same operator appears several times in a row,
@@ -158,6 +139,38 @@ parameters (collapse : Bool) (hide : VName -> Bool)
 --          Tokenizer
 --------------------------------------------------------------------------------
 
+public export
+data Token : Type where
+  Lit    : Value -> Token
+  Id     : VName -> Token
+  Op     : VName -> Token
+  Symbol : Char -> Token
+
+%runElab derive "Token" [Show,Eq]
+
+export
+Interpolation Token where
+  interpolate (Lit x)    = show x
+  interpolate (Id str)   = show str
+  interpolate (Op str)   = show str
+  interpolate (Symbol c) = show c
+
+public export
+data Err : Type where
+  Unclosed   : Char -> Err
+  Unknown    : Char -> Err
+  ExpectedId : Err
+
+%runElab derive "Err" [Show,Eq]
+
+public export
+0 PSErr : Type
+PSErr = Bounded (ParseError Token Err)
+
+public export %inline
+fromChar : Char -> Token
+fromChar = Symbol
+
 isIdentStart : Char -> Bool
 isIdentStart '_' = True
 isIdentStart  x  = isAlpha x
@@ -167,224 +180,198 @@ isIdentTrailing '\'' = True
 isIdentTrailing '_'  = True
 isIdentTrailing x    = isAlphaNum x || x > chr 160
 
-lexident : Lexer
-lexident = pred isIdentStart <+> preds0 isIdentTrailing
+ident : AutoShift False Char
+ident ('.'::x::t) = if isIdentStart x then ident t else Succ ('.'::x::t)
+ident (x :: t)    = if isIdentTrailing x then ident t else Succ (x::t)
+ident []          = Succ []
 
-namespacedIdent : Lexer
-namespacedIdent = lexident <+> many (is '.' <+> lexident)
+opChars : List Char
+opChars = unpack ":!#$%&*+./<=>?@\\^|-~"
 
-public export
-data Token : Type where
-  Lit      : Value -> Token
-  Ident    : String -> Token
-  Op       : String -> Token
-  Equals   : Token
-  Comma    : Token
-  BracketO : Token
-  BracketC : Token
-  BraceO   : Token
-  BraceC   : Token
-  ParenO   : Token
-  ParenC   : Token
-  Space    : Token
+%inline isOp : Char -> Bool
+isOp c = c `elem` opChars
 
-%runElab derive "Token" [Show,Eq]
+toOp : SnocList Char -> Token
+toOp [<'='] = '='
+toOp sc     = Op $ pack sc
 
-isOpChar : Char -> Bool
-isOpChar c = c `elem` (unpack ":!#$%&*+./<=>?@\\^|-~")
+sfx :
+     (SnocList Char -> Token)
+  -> ShiftRes {t = Char} True [<] ts
+  -> SuffixRes True Char ts Token
+sfx = suffix
 
-op : Lexer
-op = preds isOpChar
+%inline nat,dbl :
+     ShiftRes {t = Char} True [<] ts
+  -> SuffixRes True Char ts Token
+nat = suffix (Lit . Natural . pack)
 
-isSymbol : Char -> Bool
-isSymbol c = c `elem` (unpack "()[]{},")
-
-parseOp : SnocList Char -> Token
-parseOp [<'='] = Equals
-parseOp s      = Op (pack s)
-
-natLit : AutoShift True Char
-natLit ('0' :: 'x' :: t) = takeWhile1 {b} isHexDigit t
-natLit ('0' :: 'X' :: t) = takeWhile1 {b} isHexDigit t
-natLit ('0' :: 'o' :: t) = takeWhile1 {b} isOctDigit t
-natLit ('0' :: 'b' :: t) = takeWhile1 {b} isBinDigit t
-natLit t                 = takeWhile1 {b} isDigit t
-
-tokParens : Tok True Char Token
-tokParens ('(' :: t) = Succ ParenO t
-tokParens (')' :: t) = Succ ParenC t
-tokParens ('{' :: t) = Succ BraceO t
-tokParens ('}' :: t) = Succ BraceC t
-tokParens ('[' :: t) = Succ BracketO t
-tokParens (']' :: t) = Succ BracketC t
-tokParens (',' :: t) = Succ Comma t
-tokParens _          = Fail
-
-dbl : SnocList Char -> Token
-dbl sc =
+dbl = suffix $ \sc =>
   if all isDigit sc then Lit (Natural $ pack sc) else Lit (Dbl $ pack sc)
 
-natural : Lexer
-natural = autoLift {b = True} natLit <+> reject (oneOf ['.', 'e', 'E'])
+strLit : AutoShift False Char
+strLit ('\\' :: x :: xs) = strLit xs
+strLit ('"' :: xs)       = Succ xs
+strLit (x :: xs)         = strLit xs
+strLit []                = Stop
 
-unesc : SnocList Char -> List Char -> SnocList Char
+charLit : AutoShift False Char
+charLit ('\\' :: x :: xs) = charLit xs
+charLit ('\'' :: xs)      = Succ xs
+charLit (x :: xs)         = charLit xs
+charLit []                = Stop
 
-unescDec, unescHex, unescOct : Nat -> SnocList Char -> List Char -> SnocList Char
+tok : Tok True Char Token
+tok ('0' :: 'x' :: t) = nat $ takeWhile1 {b = True} isHexDigit t
+tok ('0' :: 'X' :: t) = nat $ takeWhile1 {b = True} isHexDigit t
+tok ('0' :: 'o' :: t) = nat $ takeWhile1 {b = True} isOctDigit t
+tok ('0' :: 'b' :: t) = nat $ takeWhile1 {b = True} isBinDigit t
+tok ('(' :: t)  = Succ '(' t
+tok (')' :: t)  = Succ ')' t
+tok ('{' :: t)  = Succ '{' t
+tok ('}' :: t)  = Succ '}' t
+tok ('[' :: t)  = Succ '[' t
+tok (']' :: t)  = Succ ']' t
+tok (',' :: t)  = Succ ',' t
+tok ('\'' :: t) = sfx (Lit . Chr . pack) $ charLit t
+tok ('"'  :: t) = sfx (Lit . Str . pack) $ strLit t
+tok (x :: t)  =
+  if      isOp x then sfx toOp $ takeWhile isOp t
+  else if isDigit x then dbl $ number (x::t) @{Same}
+  else if isIdentStart x then sfx (Id . pack) $ ident t
+  else Fail
+tok []         = Fail
 
-unescOct k sc (x :: xs) =
-  if isOctDigit x
-     then unescOct (k * 8 + octDigit x) sc xs
-     else unesc (sc :< cast k) xs
-unescOct k sc [] = sc :< cast k
+toErr : (l,c : Nat) -> Char -> List Char -> Either PSErr a
+toErr l c '"'  cs = custom (oneChar l c) (Unclosed '"')
+toErr l c '\'' cs = custom (oneChar l c) (Unclosed '\'')
+toErr l c x    cs = custom (oneChar l c) (Unknown x)
 
-unescDec k sc (x :: xs) =
-  if isDigit x
-     then unescDec (k * 10 + digit x) sc xs
-     else unesc (sc :< cast k) xs
-unescDec k sc [] = sc :< cast k
+post :
+     List (Bounded Token)
+  -> SnocList (Bounded Token)
+  -> List (Bounded Token)
+post xs (sx :< B '(' c :< B (Op s) d :< B ')' e) = case sx of
+  sy :< B (Id n) a :< B (Op ".") b =>
+    post (B (Id $ MkName "\{n}.(\{s})") (a <+> b <+> c <+> d <+> e) :: xs) sy
+  _ => post (B (Id $ MkName "(\{s})") (c <+> d <+> e) :: xs) sx
+post xs (sx :< x) = post (x :: xs) sx
+post xs [<]       = xs
 
-unescHex k sc (x :: xs) =
-  if isHexDigit x
-     then unescHex (k * 16 + hexDigit x) sc xs
-     else unesc (sc :< cast k) xs
-unescHex k sc [] = sc :< cast k
-
-unesc sc ['"']                = sc
-unesc sc ('\\' :: '"' :: xs)  = unesc (sc :< '"') xs
-unesc sc ('\\' :: 'n' :: xs)  = unesc (sc :< '\n') xs
-unesc sc ('\\' :: 't' :: xs)  = unesc (sc :< '\t') xs
-unesc sc ('\\' :: 'r' :: xs)  = unesc (sc :< '\r') xs
-unesc sc ('\\' :: 'f' :: xs)  = unesc (sc :< '\f') xs
-unesc sc ('\\' :: 'b' :: xs)  = unesc (sc :< '\b') xs
-unesc sc ('\\' :: '\\' :: xs) = unesc (sc :< '\\') xs
-unesc sc ('\\' :: c :: xs@(x :: t)) =
-  if (toLower c == 'x' && isHexDigit x) then unescHex (hexDigit x) sc t
-  else if (c == 'o' && isOctDigit x) then unescOct (octDigit x) sc t
-  else if isDigit c then unescDec (digit c) sc xs
-  else unesc (sc :< c) xs
-unesc sc (x :: xs)            = unesc (sc :< x) xs
-unesc sc []                   = sc
+go :
+     SnocList (Bounded Token)
+ -> (l,c   : Nat)
+ -> (cs    : List Char)
+ -> (0 acc : SuffixAcc cs)
+ -> Either PSErr (List (Bounded Token))
+go sx l c ('\n' :: xs) (SA r) = go sx (l+1) 0 xs r
+go sx l c (x :: xs)    (SA r) =
+  if isSpace x
+     then go sx l (c+1) xs r
+     else case tok (x::xs) of
+       Succ t xs' @{prf} =>
+         let c2 := c + toNat prf
+          in go (sx :< bounded t l c l c2) l c2 xs' r
+       Fail => toErr l c x xs
+go sx l c [] _ = Right (post [] sx)
 
 export
-tokens : Tokenizer Token
-tokens =
-  Match [
-     (natural, Lit . Natural . pack)
-   , (reject (is '-') <+> autoLift number, dbl)
-   , (stringLit, Lit . Str . pack)
-   , (charLit, Lit . Chr . pack)
-   , (namespacedIdent, Ident . pack)
-   , (op, parseOp)
-   , (spaces, const Space)
-   ] <|> Direct tokParens
+tokens : String -> Either PSErr (List (Bounded Token))
+tokens s = go [<] 0 0 (unpack s) suffixAcc
 
 --------------------------------------------------------------------------------
 --          Parser
 --------------------------------------------------------------------------------
 
-AnyRule : Bool -> Type -> Type
-AnyRule b = Grammar b () Token Void
+toInfx : List (VName,Value) -> SnocList (VName,Value) -> Value -> Value
+toInfx xs (sx :< (n,v')) v = toInfx ((n,v) :: xs) sx v'
+toInfx [] [<] v = v
+toInfx ps [<] v = InfixCons v ps
 
-Rule : Type -> Type
-Rule = AnyRule True
+toTpl : List Value -> Value
+toTpl [] = Con "()" []
+toTpl (x :: []) = x
+toTpl (x :: (y :: xs)) = Tuple x y xs
 
-EmptyRule : Type -> Type
-EmptyRule = AnyRule False
+0 Rule : Bool -> Type -> Type
+Rule b t =
+     (xs : List $ Bounded Token)
+  -> (0 acc : SuffixAcc xs)
+  -> Res b Token xs Err t
 
-lit : Rule Value
-lit = terminal $ \case Lit v => Just v; _ => Nothing
+list : Bounds -> SnocList Value -> Rule True Value
 
-ident : Rule VName
-ident = terminal $ \case Ident v => Just (MkName v); _ => Nothing
+tpl : Bounds -> SnocList Value -> Rule True Value
 
-operator : Rule VName
-operator = terminal $ \case Op v => Just (MkName v); _ => Nothing
+rec : VName -> Bounds -> SnocList (VName,Value) -> Rule True Value
 
-minus : Rule ()
-minus = is (Op "-")
+infx : SnocList (VName,Value) -> Rule True Value
 
-comma : Rule ()
-comma = is Comma
+args : VName -> SnocList Value -> Rule False Value
 
-equals : Rule ()
-equals = is Equals
+value,single,applied : Rule True Value
 
-parens : AnyRule b a -> Rule a
-parens = between (is ParenO) (is ParenC)
+applied (B (Lit y) _ :: xs) _        = Succ y xs
+applied (B (Id y) _ :: xs) _         = Succ (Con y []) xs
+applied (B '[' _ :: B ']' _ :: xs) _ = Succ (Lst []) xs
+applied (B '[' b :: xs) (SA r)       = succ $ list b [<] xs r
+applied (B '(' _ :: B ')' _ :: xs) _ = Succ (Con "()" []) xs
+applied (B '(' b :: xs) (SA r)       = succ $ tpl b [<] xs r
+applied (x::xs) _                    = unexpected x
+applied [] _                         = eoi
 
-brackets : AnyRule b a -> Rule a
-brackets = between (is BracketO) (is BracketC)
+single (B (Op "-") _ :: xs) (SA r)                = succ $ map Neg (applied xs r)
+single (B (Id y) _ :: B '{' _ :: B '}' _ :: xs) _ = Succ (Rec y []) xs
+single (B (Id y) _ :: B '{' b :: xs) (SA r)       = succ $ rec y b [<] xs r
+single (B (Id y) _ :: xs) (SA r)                  = succ $ args y [<] xs r
+single xs sa                                      = applied xs sa
 
-braces : AnyRule b a -> Rule a
-braces = between (is BraceO) (is BraceC)
+value xs sa = infx [<] xs sa
 
-identOrOp : Rule VName
-identOrOp = Try $ ident <|> map (\n => MkName "(\{n})") (parens operator)
+args n sv xs sa@(SA r) = case applied xs sa of
+  Succ v xs' => weaken $ succ $ args n (sv :< v) xs' r
+  Fail _     => Succ (Con n $ sv <>> []) xs
 
-value,applied,negApplied,negated,list,tuple,con,rec,infx : Rule Value
+list b sv xs sa@(SA r) = case value xs sa of
+  Succ v (B ',' _ :: ys) => succ $ list b (sv :< v) ys r
+  Succ v (B ']' _ :: ys) => Succ (Lst $ sv <>> [v]) ys
+  Succ v (y::_)          => unexpected y
+  Succ _ []              => custom b (Unclosed '[')
+  Fail (B EOI _)         => custom b (Unclosed '[')
+  Fail err               => Fail err
 
-values : EmptyRule (List Value)
-values = sepBy comma value
+tpl b sv xs sa@(SA r) = case value xs sa of
+  Succ v (B ',' _ :: ys) => succ $ tpl b (sv :< v) ys r
+  Succ v (B ')' _ :: ys) => Succ (toTpl $ sv <>> [v]) ys
+  Succ v (y::_)          => unexpected y
+  Succ _ []              => custom b (Unclosed '(')
+  Fail (B EOI _)         => custom b (Unclosed '(')
+  Fail err               => Fail err
 
-value =
-      lit
-  <|> negated
-  <|> list
-  <|> Try tuple
-  <|> Try rec
-  <|> con
-  <|> infx
+infx sv xs sa@(SA r) = case single xs sa of
+  Succ v (B (Op n) _ :: ys) => succ $ infx (sv :< (n,v)) ys r
+  Succ v ys                 => Succ (toInfx [] sv v) ys
+  Fail err                  => Fail err
 
-applied =
-      lit
-  <|> map (`Con` []) identOrOp
-  <|> tuple
-  <|> list
-
-negApplied = map Neg applied
-
-negated = minus >>= \_ => negApplied
-
-tuple = do
-  _ <- is ParenO
-  vs <- values
-  _ <- is ParenC
-  pure $ case vs of
-    []        => Con "()" []
-    [x]       => x
-    x1::x2::t => Tuple x1 x2 t
-
-list = do
-  _ <- is BracketO
-  vs <- values
-  _ <- is BracketC
-  pure $ Lst vs
-
-pair : Rule (VName,Value)
-pair = [| (,) identOrOp (equals *> value) |]
-
-rec = [| Rec identOrOp (braces $ sepBy comma pair) |]
-
-con = [| Con identOrOp (many applied) |]
-
-infxOps : Rule (Value, List (VName, Value))
-
-moreOps : Value -> VName -> Rule (Value, List (VName,Value))
-
-infx = uncurry InfixCons <$> infxOps
-
-infxOps = do
-  v  <- applied
-  op <- operator
-  moreOps v op
-
-moreOps v op =
-  map (\(v2,ps) => (v,(op,v2) :: ps)) infxOps <|>
-  map (\v2 => (v, [(op,v2)])) applied
+rec n b sv (B (Id y) _ :: B '=' _ :: xs) (SA r) = case succ $ value xs r of
+  Succ v (B ',' _ :: ys) => succ $ rec n b (sv :< (y,v)) ys r
+  Succ v (B '}' _ :: ys) => Succ (Rec n $ sv <>> [(y,v)]) ys
+  Succ v (y::_)          => unexpected y
+  Succ _ _               => custom b (Unclosed '{')
+  Fail (B EOI _)         => custom b (Unclosed '{')
+  Fail err               => Fail err
+rec _ _ _ (B (Id _) _ ::x::xs) _ = expected x.bounds '='
+rec _ _ _ (x::xs) _ = custom x.bounds ExpectedId
+rec _ _ _ [] _ = eoi
 
 export
-parseValueE : String -> Either (ReadError Token Void) Value
-parseValueE s = snd <$> lexAndParse Virtual tokens (/= Space) value () s
+parseValueE : String -> Either (ReadError Token Err) Value
+parseValueE str = case tokens str of
+  Left x   => Left (parseFailed Virtual $ pure x)
+  Right ts => case value ts suffixAcc of
+    Fail err           => Left (parseFailed Virtual $ pure err)
+    Succ res []        => Right res
+    Succ res (x :: xs) => Left (parseFailed Virtual $ pure $ Unexpected <$> x)
 
 export
 parseValue : String -> Maybe Value
