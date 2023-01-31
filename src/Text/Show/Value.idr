@@ -16,9 +16,9 @@ record VName where
   constructor MkName
   unName : String
 
-public export
-pack : SnocList Char -> VName
-pack = MkName . pack
+public export %inline
+Cast (SnocList Char) VName where
+  cast = MkName . cast
 
 %runElab derive "VName" [Show,Eq,Ord,FromString,Semigroup,Monoid]
 
@@ -193,7 +193,7 @@ isOp c = c `elem` opChars
 
 toOp : SnocList Char -> Token
 toOp [<'='] = '='
-toOp sc     = Op $ pack sc
+toOp sc     = Op $ cast sc
 
 sfx :
      (SnocList Char -> Token)
@@ -204,10 +204,10 @@ sfx = suffix
 %inline nat,dbl :
      ShiftRes {t = Char} True [<] ts
   -> SuffixRes True Char ts Token
-nat = suffix (Lit . Natural . pack)
+nat = suffix (Lit . Natural . cast)
 
 dbl = suffix $ \sc =>
-  if all isDigit sc then Lit (Natural $ pack sc) else Lit (Dbl $ pack sc)
+  if all isDigit sc then Lit (Natural $ cast sc) else Lit (Dbl $ cast sc)
 
 strLit : AutoShift False Char
 strLit ('\\' :: x :: xs) = strLit xs
@@ -233,12 +233,12 @@ tok ('}' :: t)  = Succ '}' t
 tok ('[' :: t)  = Succ '[' t
 tok (']' :: t)  = Succ ']' t
 tok (',' :: t)  = Succ ',' t
-tok ('\'' :: t) = sfx (Lit . Chr . pack) $ charLit t
-tok ('"'  :: t) = sfx (Lit . Str . pack) $ strLit t
+tok ('\'' :: t) = sfx (Lit . Chr . cast) $ charLit t
+tok ('"'  :: t) = sfx (Lit . Str . cast) $ strLit t
 tok (x :: t)  =
   if      isOp x then sfx toOp $ takeWhile isOp t
   else if isDigit x then dbl $ number (x::t) @{Same}
-  else if isIdentStart x then sfx (Id . pack) $ ident t
+  else if isIdentStart x then sfx (Id . cast) $ ident t
   else Fail
 tok []         = Fail
 
