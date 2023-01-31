@@ -1,7 +1,7 @@
 module Text.Show.Pretty
 
 import Data.List
-import Text.PrettyPrint.Prettyprinter
+import Text.PrettyPrint.Bernardy
 
 import public Text.Show.Value
 import public Text.Show.PrettyVal
@@ -23,127 +23,119 @@ isAtom : Value -> Bool
 isAtom (Con _ (_ :: _))  = False
 isAtom v                 = isInfixAtom v
 
-blockWith :  (List (Doc ann) -> Doc ann)
-          -> Char
-          -> Char
-          -> List (Doc ann) -> Doc ann
-blockWith _ a b []       = pretty a <+> pretty b
-blockWith f a b (d::ds)  = f $  (pretty a <++> d)
-                             :: [ pretty ',' <++> x | x <- ds ]
-                             ++ [ pretty b ]
+onLineAfter : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+onLineAfter l d = vappend d (indent 2 l)
 
-block : Char -> Char -> List (Doc ann) -> Doc ann
-block = blockWith sep
-
-hangAfter : Doc ann -> Int -> Doc ann -> Doc ann
-hangAfter pre n po = sep [pre, nest n po]
-
-toDoc : Value -> Doc ann
+toDoc : {opts : _} -> Value -> Doc opts
 toDoc val =
   case val of
     Con (MkName "") vs => sep $ atoms vs
-    Con (MkName c)  [] => pretty c
-    Con (MkName c)  vs => hangAfter (pretty c) 2 (sep $ atoms vs)
-    InfixCons v1 cvs   => hangsep (infx v1 cvs)
-    Rec c fs           => hangAfter (pretty c) 2 $ block '{' '}' (fields fs)
-    Lst vs             => block '[' ']' (docs vs)
-    Tuple v1 v2 vs     => block '(' ')' (toDoc v1 :: toDoc v2 :: docs vs)
-    Neg v              => pretty '-' <+> atom v
-    Natural x          => pretty x
-    Dbl x              => pretty x
-    Chr x              => pretty x
-    Str x              => pretty x
+    Con (MkName c)  [] => line c
+    Con (MkName c)  vs => prettyCon Open c (atoms vs)
+    InfixCons v1 cvs   => sep (infx v1 cvs)
+    Rec (MkName c) fs  => prettyRecord Open c (fields fs)
+    Lst vs             => list (docs vs)
+    Tuple v1 v2 vs     => tuple (toDoc v1 :: toDoc v2 :: docs vs)
+    Neg v              => line "-" <+> atom v
+    Natural x          => line x
+    Dbl x              => line x
+    Chr x              => line x
+    Str x              => line x
 
   where
-    atom : Value -> Doc ann
+    atom : Value -> Doc opts
     atom v = if isAtom v then toDoc v else parens (toDoc v)
 
     -- the explicit list mappings like `atoms`, `docs`, and
     -- `fields` are necessary to convince the totality checker.
-    atoms : List Value -> List (Doc ann)
+    atoms : List Value -> List (Doc opts)
     atoms []        = []
     atoms (x :: xs) = atom x :: atoms xs
 
-    infixAtom : Value -> Doc ann
+    infixAtom : Value -> Doc opts
     infixAtom v = if isInfixAtom v then toDoc v else parens (toDoc v)
 
-    field : (VName,Value) -> Doc ann
-    field (x,v) = hangAfter (pretty x <++> pretty '=') 2 (toDoc v)
+    field : (VName,Value) -> Doc opts
+    field (MkName s,v) =
+      let name := line s <++> equals
+          val  := toDoc v
+       in ifMultiline (name <++> val) (val `onLineAfter` name)
 
-    fields : List (VName,Value) -> List (Doc ann)
+    fields : List (VName,Value) -> List (Doc opts)
     fields []        = []
     fields (p :: ps) = field p :: fields ps
 
-    docs : List Value -> List (Doc ann)
+    docs : List Value -> List (Doc opts)
     docs []        = []
     docs (x :: xs) = toDoc x :: docs xs
 
-    infx : Value -> List (VName,Value) -> List (Doc ann)
-    infx v []             = [infixAtom v]
-    infx v ((n,v2)::cvs') = (infixAtom v <++> pretty n) :: infx v2 cvs'
+    infx : Value -> List (VName,Value) -> List (Doc opts)
+    infx v []                  = [infixAtom v]
+    infx v ((MkName n,v2)::ps) = (infixAtom v <++> line n) :: infx v2 ps
 
-    hangsep : List (Doc ann) -> Doc ann
-    hangsep []      = neutral
-    hangsep (x::xs) = hangAfter x 2 (sep xs)
+public export
+dfltOpts : LayoutOpts
+dfltOpts = Opts 80
 
 ||| Pretty print a generic value. Our intention is that the result is
 ||| equivalent to the 'Show' instance for the original value, except possibly
 ||| easier to understand by a human.
-export
-valToDoc : Value -> Doc ann
+export %inline
+valToDoc : {opts : _} -> Value -> Doc opts
 valToDoc = toDoc
 
 ||| Pretty print a generic value. Our intention is that the result is
 ||| equivalent to the 'Show' instance for the original value, except possibly
 ||| easier to understand by a human.
-export
+export %inline
 valToStr : Value -> String
-valToStr = show . valToDoc {ann = ()}
+valToStr = render dfltOpts . valToDoc
 
 --------------------------------------------------------------------------------
 --          Pretty via Show
 --------------------------------------------------------------------------------
 
-export covering
+export %inline
 reify : Show a => a -> Maybe Value
 reify = parseValue . show
 
 ||| Try to show a value, prettily. If we do not understand the value, then we
 ||| just use its standard 'Show' instance.
-export covering
-ppDoc : Show a => a -> Doc ann
-ppDoc a = let txt = show a
-           in maybe (fromString txt) valToDoc (parseValue txt)
+export
+ppDoc : {opts : _} -> Show a => a -> Doc opts
+ppDoc a =
+  let txt = show a
+   in maybe (fromString txt) valToDoc (parseValue txt)
 
 ||| Convert a generic value into a pretty 'String', if possible.
-export covering
+export %inline
 ppShow : Show a => a -> String
-ppShow = show . ppDoc {ann = ()}
+ppShow = render dfltOpts . ppDoc
 
 ||| Pretty print something that may be converted to a list as a list.
 ||| Each entry is on a separate line, which means that we don't do clever
 ||| pretty printing, and so this works well for large strucutures.
-export covering
-ppDocList : (Foldable f, Show a) => f a -> Doc ann
-ppDocList = blockWith vcat '[' ']' . map ppDoc . toList
+export %inline
+ppDocList : {opts : _} -> (Foldable f, Show a) => f a -> Doc opts
+ppDocList = list . map ppDoc . toList
 
 ||| Pretty print something that may be converted to a list as a list.
 ||| Each entry is on a separate line, which means that we don't do clever
 ||| pretty printing, and so this works well for large strucutures.
-export covering
+export %inline
 ppShowList : (Foldable f, Show a) => f a -> String
-ppShowList = show . ppDocList {ann = ()}
+ppShowList = render dfltOpts . ppDocList
 
 
 ||| Pretty print a generic value to stdout.
-export covering
+export
 pPrint : Show a => a -> IO ()
 pPrint = putStrLn . ppShow
 
 ||| Pretty print something that may be converted to a list as a list.
 ||| Each entry is on a separate line, which means that we don't do clever
 ||| pretty printing, and so this works well for large strucutures.
-export covering
+export
 pPrintList : (Foldable f, Show a) => f a -> IO ()
 pPrintList = putStrLn . ppShowList
 
@@ -155,7 +147,7 @@ pPrintList = putStrLn . ppShowList
 ||| The benefit of this function is that `PrettyVal` instances may
 ||| be derived automatically using generics.
 export
-dumpDoc : PrettyVal a => a -> Doc ann
+dumpDoc : {opts : _} -> PrettyVal a => a -> Doc opts
 dumpDoc = valToDoc . prettyVal
 
 ||| Render a value in the `PrettyVal` interface to a `String`.
@@ -163,7 +155,7 @@ dumpDoc = valToDoc . prettyVal
 ||| be derived automatically using generics.
 export
 dumpStr : PrettyVal a => a -> String
-dumpStr = show . dumpDoc {ann = ()}
+dumpStr = render dfltOpts . dumpDoc
 
 ||| Render a value using the `PrettyVal` interface
 ||| and show it to standard out.
@@ -187,12 +179,12 @@ PrettyVal a => PrettyVal (PreProc a) where
   prettyVal (MkPreProc p v) = p (prettyVal v)
 
 ||| Hide the given constructors when showing a value.
-export covering
+export
 ppHide : (VName -> Bool) -> a -> PreProc a
 ppHide p = MkPreProc (hideCon False p)
 
 ||| Hide the given constructors when showing a value.
 ||| In addition, hide values if all of their children were hidden.
-export covering
+export
 ppHideNested : (VName -> Bool) -> a -> PreProc a
 ppHideNested p = MkPreProc (hideCon True p)

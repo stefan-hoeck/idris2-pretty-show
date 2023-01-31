@@ -22,25 +22,6 @@ data ValueDiff = Con VName (List ValueDiff)
 
 %runElab derive "ValueDiff" [Show,Eq,PrettyVal]
 
-namespace ValueDiff
-  export
-  depth : ValueDiff -> Nat
-  depth v = case v of
-                 (Con x xs)     => S $ maxDepth xs
-                 (Rec x xs)     => S $ maxDepthP xs
-                 (Tuple x y xs) => S . max (depth x) $ max (depth y) (maxDepth xs)
-                 (Lst xs)       => S $ maxDepth xs
-                 (Same x)       => 0
-                 (Diff x y)     => 0
-
-    where maxDepth : List ValueDiff -> Nat
-          maxDepth []       = 0
-          maxDepth (h :: t) = max (depth h) (maxDepth t)
-
-          maxDepthP : List (a,ValueDiff) -> Nat
-          maxDepthP []           = 0
-          maxDepthP ((_,h) :: t) = max (depth h) (maxDepthP t)
-
 public export
 data LineDiff = LineSame String
               | LineRemoved String
@@ -58,66 +39,52 @@ data DocDiff = DocSame Nat String
 
 %runElab derive "DocDiff" [Show,Eq,PrettyVal]
 
-namespace DocDiff
-  export
-  depth : DocDiff -> Nat
-  depth v = case v of
-                 DocItem _ _ ds => S $ maxDepth ds
-                 _              => 1
-
-    where maxDepth : List DocDiff -> Nat
-          maxDepth []       = 0
-          maxDepth (h :: t) = max (depth h) (maxDepth t)
-
 --------------------------------------------------------------------------------
 --          Diffing
 --------------------------------------------------------------------------------
 
--- using the sledgehammer of totality here, since I couldn't satisfy
--- the totality checker otherwise.
-valueDiffN : (depth : Nat) -> Value -> Value -> ValueDiff
-valueDiffN 0 x y = if x == y then Same x else Diff x y
-valueDiffN (S k) x y =
-  case (x, y) of
-       (Con nx xs, Con ny ys) =>
-         if nx == ny  && length xs == length ys
-            then Con nx (zipWith (valueDiffN k) xs ys)
-            else Diff x y
-
-       (Lst xs, Lst ys) =>
-         if length xs == length ys
-            then Lst (zipWith (valueDiffN k) xs ys)
-            else Diff x y
-
-       (Tuple v1 v2 vs, Tuple w1 w2 ws) =>
-         if length vs == length ws
-            then Tuple (valueDiffN k v1 w1)
-                       (valueDiffN k v2 w2)
-                       (zipWith (valueDiffN k) vs ws)
-            else Diff x y
-
-       (Rec nx nxs, Rec ny nys) =>
-         let ns = map fst nxs
-          in if nx == ny && ns == map fst nys
-                then Rec nx . zip ns $ zipWith (valueDiffN k)
-                                               (map snd nxs)
-                                               (map snd nys)
-                else Diff x y
-
-       _ => if x == y then Same x else Diff x y
-
 export
 valueDiff : Value -> Value -> ValueDiff
-valueDiff v w = valueDiffN (depth v `max` depth w) v w
+
+zipDiff :
+     SnocList ValueDiff
+  -> List Value
+  -> List Value
+  -> Maybe (List ValueDiff)
+zipDiff sx [] [] = Just $ sx <>> []
+zipDiff sx (x :: xs) (y :: ys) = zipDiff (sx :< valueDiff x y) xs ys
+zipDiff _ _ _ = Nothing
+
+zipDiffP :
+     SnocList (VName, ValueDiff)
+  -> List (VName, Value)
+  -> List (VName, Value)
+  -> Maybe (List (VName, ValueDiff))
+zipDiffP sx [] [] = Just $ sx <>> []
+zipDiffP sx ((n1,x) :: xs) ((n2,y) :: ys) =
+  if n1 == n2 then zipDiffP (sx :< (n1, valueDiff x y)) xs ys else Nothing
+zipDiffP _ _ _ = Nothing
+
+valueDiff x@(Con nx xs) y@(Con ny ys) =
+    if nx == ny then maybe (Diff x y) (Con ny) (zipDiff [<] xs ys)
+    else Diff x y
+valueDiff x@(Rec nx xs) y@(Rec ny ys) =
+    if nx == ny then maybe (Diff x y) (Rec ny) (zipDiffP [<] xs ys)
+    else Diff x y
+valueDiff x@(Lst xs) y@(Lst ys) = maybe (Diff x y) Lst (zipDiff [<] xs ys)
+valueDiff x@(Tuple x1 x2 xs) y@(Tuple y1 y2 ys) = case zipDiff [<] xs ys of
+  Nothing => Diff x y
+  Just ds => Tuple (valueDiff x1 y1) (valueDiff x2 y2) ds
+valueDiff x y = if x == y then Same x else Diff x y
 
 take : (f : Value -> Value -> Value) -> ValueDiff -> Value
 take f v = case v of
-             Con x xs     => Con x $ ts xs
-             Rec x xs     => Rec x $ tsP xs
-             Tuple x y xs => Tuple (take f x) (take f y) (ts xs)
-             Lst xs       => Lst $ ts xs
-             Same x       => x
-             Diff x y     => f x y
+  Con x xs     => Con x $ ts xs
+  Rec x xs     => Rec x $ tsP xs
+  Tuple x y xs => Tuple (take f x) (take f y) (ts xs)
+  Lst xs       => Lst $ ts xs
+  Same x       => x
+  Diff x y     => f x y
 
   where ts : List ValueDiff -> List Value
         ts []       = []
@@ -136,9 +103,10 @@ takeRight : ValueDiff -> Value
 takeRight = take $ \_,y => y
 
 oneLiner : Value -> Bool
-oneLiner x = case lines (valToStr x) of
-               _ :: Nil   => True
-               _          => False
+oneLiner x =
+  case lines (valToStr x) of
+     _ :: Nil   => True
+     _          => False
 
 removed : (indent: Nat) -> String -> List DocDiff
 removed ind = map (DocRemoved ind) . lines
@@ -149,8 +117,8 @@ added ind = map (DocAdded ind) . lines
 same : (indent: Nat) -> String -> List DocDiff
 same ind = map (DocSame ind) . lines
 
-sameN : (indent: Nat) -> VName -> List DocDiff
-sameN ind = same ind . unName
+sameN : (indent: Nat) -> VName -> SnocList DocDiff
+sameN ind = ([<] <><) . same ind . unName
 
 remAdd : (indent : Nat) -> Value -> Value -> List DocDiff
 remAdd ind x y = removed ind (valToStr x) ++ added ind (valToStr y)
@@ -161,37 +129,68 @@ oneLine ind v dds =
       y = takeRight v
    in if oneLiner x && oneLiner y then remAdd ind x y else dds
 
-mkDocDiff : (depth : Nat) -> (indent : Nat) -> ValueDiff -> List DocDiff
-mkDocDiff _ ind (Same x)   = same ind (valToStr x)
-mkDocDiff _ ind (Diff x y) = remAdd ind x y
-mkDocDiff 0 _   _          = []
+docDiff : (indent : Nat) -> ValueDiff -> List DocDiff
 
-mkDocDiff (S k) ind v@(Con n xs) =
-  oneLine ind v $ sameN ind n ++
-                  concatMap (mkDocDiff k (ind + 2)) xs
+docDiffs :
+      SnocList DocDiff
+   ->(indent : Nat)
+   -> List ValueDiff
+   -> List DocDiff
+docDiffs sx ind (x :: xs) = docDiffs (sx <>< docDiff ind x) ind xs
+docDiffs sx ind []        = sx <>> []
 
-mkDocDiff (S k) ind v@(Rec n xs) =
-  oneLine ind v $ sameN ind n ++
-                  [DocOpen ind "{"] ++
-                  map (\(nm, x) => DocItem (ind + 2) ", " (sameN 0 (nm <+> " =") ++ mkDocDiff k 2 x)) xs ++
-                  [DocClose ind "}"]
+docItems :
+      SnocList DocDiff
+   ->(indent : Nat)
+   -> List ValueDiff
+   -> SnocList DocDiff
+docItems sx ind (x :: xs) =
+  docItems (sx :< DocItem ind ", " (docDiff 0 x)) ind xs
+docItems sx ind []        = sx
 
-mkDocDiff (S k) ind v@(Tuple x y xs) =
-  oneLine ind v $ [DocOpen ind "("] ++
-                  map (DocItem ind ", " . mkDocDiff k 0) (x::y::xs) ++
-                  [DocClose ind ")"]
+docPairs :
+      SnocList DocDiff
+   ->(indent : Nat)
+   -> List (VName,ValueDiff)
+   -> SnocList DocDiff
+docPairs sx ind ((n,x) :: xs) =
+  let ds := sameN 0 (n <+> " =") <>> docDiff 2 x
+   in docPairs (sx :< DocItem ind ", " ds) ind xs
+docPairs sx ind []        = sx
 
-mkDocDiff (S k) ind v@(Lst xs) =
-  oneLine ind v $ [DocOpen ind "["] ++
-                  map (DocItem ind ", " . mkDocDiff k 0) xs ++
-                  [DocClose ind "]"]
+docDiff ind (Same x)   = same ind (valToStr x)
+docDiff ind (Diff x y) = remAdd ind x y
+docDiff ind v@(Con n xs) =
+  oneLine ind v $ docDiffs (sameN ind n) (ind + 2) xs
+docDiff ind v@(Lst xs) =
+  oneLine ind v $ DocOpen ind "[" :: (docItems [<] ind xs <>> [DocClose ind "]"])
+docDiff ind v@(Tuple x y xs) =
+  oneLine ind v $
+    DocOpen ind "(" ::
+    DocItem ind ", " (docDiff 0 x) ::
+    DocItem ind ", " (docDiff 0 y) ::
+    (docItems [<] ind xs <>> [DocClose ind ")"])
+docDiff ind v@(Rec n xs) =
+  oneLine ind v $
+    sameN ind n <>>
+    DocOpen ind "{" ::
+    (docPairs [<] (ind + 2) xs <>> [DocClose ind "}"])
 
 spaces : Nat -> String
 spaces ind = fastPack $ replicate ind ' '
 
-mkLineDiff : (d : Nat) -> (ind : Nat) -> String -> DocDiff -> List LineDiff
-mkLineDiff 0     _    _    _    = []
-mkLineDiff (S k) ind0 pre0 diff =
+mkLineDiff : (ind : Nat) -> String -> DocDiff -> List LineDiff
+
+mkLineDiffs :
+     SnocList LineDiff
+  -> (ind : Nat)
+  -> List DocDiff
+  -> List LineDiff
+mkLineDiffs sx ind (x :: xs) =
+  mkLineDiffs (sx <>< mkLineDiff ind "" x) ind xs
+mkLineDiffs sx ind []        = sx <>> []
+
+mkLineDiff ind0 pre0 diff =
   case diff of
     DocSame i x    => [LineSame $ mkLinePrefix i ++ x]
     DocRemoved i x => [LineRemoved $ mkLinePrefix i ++ x]
@@ -200,13 +199,13 @@ mkLineDiff (S k) ind0 pre0 diff =
     DocClose i x   => [LineSame $ spaces (mkLineIndent i) ++ x]
     DocItem _ _ [] => []
     DocItem i p (x@(DocRemoved _ _) :: y@(DocAdded _ _) :: xs) =>
-      mkLineDiff k (mkLineIndent i) p x ++
-      mkLineDiff k (mkLineIndent i) p y ++
-      concatMap (mkLineDiff k (mkLineIndent (i + length p)) "") xs
+      mkLineDiff (mkLineIndent i) p x ++
+      mkLineDiff (mkLineIndent i) p y ++
+      mkLineDiffs [<] (mkLineIndent (i + length p)) xs
 
     DocItem i p (x :: xs) =>
-      mkLineDiff k (mkLineIndent i) p x ++
-      concatMap (mkLineDiff k (mkLineIndent (i + length p)) "") xs
+      mkLineDiff (mkLineIndent i) p x ++
+      mkLineDiffs [<] (mkLineIndent (i + length p)) xs
 
   where mkLinePrefix : Nat -> String
         mkLinePrefix ind = spaces ind0 ++ pre0 ++ spaces ind
@@ -233,10 +232,10 @@ dropLeadingSep [] = []
 export
 toLineDiff : ValueDiff -> List LineDiff
 toLineDiff v =
-  concatMap (\d => mkLineDiff (depth d) 0 "" d) .
+  concatMap (mkLineDiff 0 "") .
   collapseOpen .
   dropLeadingSep $
-  mkDocDiff (depth v) 0 v
+  docDiff 0 v
 
 export
 lineDiff : Value -> Value -> List LineDiff

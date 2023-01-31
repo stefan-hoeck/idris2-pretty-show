@@ -1,11 +1,10 @@
 module Text.Show.Value
 
-import Data.Vect
 import Data.List1
+import Data.Vect
 import Derive.Prelude
-import Text.Lexer
-import Text.Parser
-import Text.PrettyPrint.Prettyprinter
+import Text.Parse.Manual
+import Text.PrettyPrint.Bernardy
 
 %language ElabReflection
 
@@ -17,11 +16,18 @@ record VName where
   constructor MkName
   unName : String
 
+public export
+pack : SnocList Char -> VName
+pack = MkName . pack
+
 %runElab derive "VName" [Show,Eq,Ord,FromString,Semigroup,Monoid]
 
 public export
+Interpolation VName where interpolate (MkName n) = interpolate n
+
+public export
 Pretty VName where
-  pretty = pretty . unName
+  prettyPrec _ = line . unName
 
 ||| Generic Idris values.
 ||| The `String` in the literals is the text for the literals "as is".
@@ -46,28 +52,6 @@ data Value = Con VName (List Value)
 
 %runElab derive "Value" [Show, Eq]
 
-export
-depth : Value -> Nat
-depth v = case v of
-               (Con x xs)       => S $ maxDepth xs
-               (InfixCons x xs) => S $ maxDepthP xs
-               (Rec x xs)       => S $ maxDepthP xs
-               (Tuple x y xs)   => S . max (depth x) $ max (depth y) (maxDepth xs)
-               (Lst xs)         => S $ maxDepth xs
-               (Neg x)          => S $ depth x
-               (Natural x)      => 0
-               (Dbl x)          => 0
-               (Chr x)          => 0
-               (Str x)          => 0
-
-  where maxDepth : List Value -> Nat
-        maxDepth []       = 0
-        maxDepth (h :: t) = max (depth h) (maxDepth t)
-
-        maxDepthP : List (a,Value) -> Nat
-        maxDepthP []           = 0
-        maxDepthP ((_,h) :: t) = max (depth h) (maxDepthP t)
-
 ||| Displays an applied binary operator.
 ||| If the same operator appears several times in a row,
 ||| this is treated as a list of infix constructors.
@@ -80,310 +64,315 @@ binOp op pvx pvy =
                        else InfixCons pvx [(op,pvy)]
         _ => InfixCons pvx [(op,pvy)]
 
-||| Hide constructors matching the given predicate.
-||| If the hidden value is in a record, we also hide
-||| the corresponding record field.
-|||
-||| If the boolean flag is true, then we also hide
-||| constructors all of whose fields were hidden.
-public export covering
-hideCon : Bool -> (VName -> Bool) -> Value -> Value
-hideCon collapse hidden = toVal . delMaybe
-  where
-  hiddenV : Value
-  hiddenV = Con "_" []
+hidden : (Bool,Value)
+hidden = (True, Con "_" [])
 
-  toVal : Maybe Value -> Value
-  toVal = fromMaybe hiddenV
+toVal : Bool -> Lazy Value -> (Bool,Value)
+toVal True  _ = hidden
+toVal False v = (False, v)
 
-  mutual
-    covering
-    delMany : (Functor f, Foldable f) => f Value -> Maybe (f Value)
-    delMany vals =
-      let newVals = map delMaybe vals
-       in if collapse && all isNothing newVals
-            then Nothing
-            else Just (map toVal newVals)
+0 V,VN : Type
+V  = Value
+VN = VName
 
-    covering
-    delMaybe : Value -> Maybe Value
-    delMaybe val =
-      case val of
-           Con x vs =>
-             if hidden x
-               then Nothing
-               else if null vs
-                 then Just val
-                 else Con x <$> delMany vs
+parameters (collapse : Bool) (hide : VName -> Bool)
 
-           InfixCons v ys =>
-             let (cs,vs) = unzip ys
-                 mbs     = delay $ map delMaybe vs
-              in if any hidden cs
-                   then Nothing
-                   else do (v1 ::: vs1) <- delMany (v ::: vs)
-                           pure (InfixCons v1 (zip cs vs1))
+  -- the `Bool` flag is set to `True`, if the wrapped value
+  -- was hidden and corresponds to `Con "_" []`.
+  val : V -> (Bool,V)
 
+  ops : Bool -> SnocList (VN,V) -> V -> List (VN,V) -> (Bool,V)
+  ops h sv v0 []            = toVal h $ InfixCons v0 (sv <>> [])
+  ops h sv v0 ((n,v) :: vs) =
+    let (h2,w) := val v in ops (h && h2) (sv :< (n,w)) v0 vs
 
-           Rec x fs =>
-             let (ls,vs) = delay $ unzip fs
-                 mbs     = delay $ map delMaybe vs
-              in if hidden x
-                   then Nothing
-                   else if null fs
-                     then Just val
-                     else if collapse && all isNothing mbs
-                       then Nothing
-                       else let ps = mapMaybe (\(f,mv) => (f,) <$> mv)
-                                              (zip ls mbs)
-                             in Just (Rec x ps)
+  hrec : Bool -> SnocList (VN,V) -> VN -> List (VN,V) -> (Bool,V)
+  hrec h sv nm [] = toVal h $ Rec nm (sv <>> [])
+  hrec h sv nm ((n,v) :: vs) = case val v of
+    (False, w) => hrec False (sv :< (n,w)) nm vs
+    (True,_)   => hrec h sv n vs
 
-           Tuple v1 v2 vs  => let vs2 = delMany (v1 :: v2 :: Vect.fromList vs)
-                               in map (\(a::b::xs) => Tuple a b (toList xs)) vs2
+  hcon : Bool -> SnocList V -> VN -> List V -> (Bool,V)
+  hcon h sv n [] = toVal h $ Con n (sv <>> [])
+  hcon h sv n (v :: vs) = let (h2,w) := val v in hcon (h && h2) (sv :< w) n vs
 
-           Lst []          => Just val
-           Lst vs          => Lst <$> delMany vs
-           Neg v           => Neg <$> delMaybe v
-           Natural _       => Just val
-           Dbl _           => Just val
-           Chr _           => Just val
-           Str _           => Just val
+  lst : Bool -> SnocList V -> List V -> (Bool,V)
+  lst h sv [] = toVal h $ Lst (sv <>> [])
+  lst h sv (v :: vs) = let (h2,w) := val v in lst (h && h2) (sv :< w) vs
+
+  val (Con x xs) =
+    if hide x then hidden else hcon (isCons xs && collapse) [<] x xs
+
+  val (InfixCons v ps) =
+    if any (hide . fst) ps then hidden
+    else let (b,w) := val v in ops (b && collapse) [<] w ps
+
+  val (Rec x xs) =
+    if hide x then hidden else hrec (isCons xs && collapse) [<] x xs
+
+  val (Lst xs) = lst (isCons xs && collapse) [<] xs
+
+  val (Neg v) = let (b,w) := val v in (b,w)
+
+  val (Tuple v1 v2 vs) =
+    let (b1,w1)     := val v1
+        (b2,w2)     := val v2
+        (b3,Lst ws) := lst (b1 && b2 && collapse) [<] vs | _ => hidden
+     in toVal b3 $ Tuple w1 w2 ws
+
+  val (Natural x) = (False,Natural x)
+  val (Dbl x)     = (False,Dbl x)
+  val (Chr x)     = (False,Chr x)
+  val (Str x)     = (False,Str x)
+
+  ||| Hide constructors matching the given predicate.
+  ||| If the hidden value is in a record, we also hide
+  ||| the corresponding record field.
+  |||
+  ||| If the boolean flag is true, then we also hide
+  ||| constructors all of whose fields were hidden.
+  export
+  hideCon : Value -> Value
+  hideCon = snd . val
 
 --------------------------------------------------------------------------------
 --          Tokenizer
 --------------------------------------------------------------------------------
 
--- taken from the actual Idris2 tokenizer
-data Flavour = Capitalised | Normal
+public export
+data Token : Type where
+  Lit    : Value -> Token
+  Id     : VName -> Token
+  Op     : VName -> Token
+  Symbol : Char -> Token
 
-isIdentStart : Flavour -> Char -> Bool
-isIdentStart _           '_' = True
-isIdentStart Capitalised  x  = isUpper x
-isIdentStart _            x  = isAlpha x
+%runElab derive "Token" [Show,Eq]
+
+export
+Interpolation Token where
+  interpolate (Lit x)    = show x
+  interpolate (Id str)   = show str
+  interpolate (Op str)   = show str
+  interpolate (Symbol c) = show c
+
+public export
+data Err : Type where
+  Unclosed   : Char -> Err
+  Unknown    : Char -> Err
+  ExpectedId : Err
+
+%runElab derive "Err" [Show,Eq]
+
+public export
+0 PSErr : Type
+PSErr = Bounded (ParseError Token Err)
+
+public export %inline
+fromChar : Char -> Token
+fromChar = Symbol
+
+isIdentStart : Char -> Bool
+isIdentStart '_' = True
+isIdentStart  x  = isAlpha x
 
 isIdentTrailing : Char -> Bool
 isIdentTrailing '\'' = True
 isIdentTrailing '_'  = True
 isIdentTrailing x    = isAlphaNum x || x > chr 160
 
-ident : Flavour -> Lexer
-ident flavour =   (pred $ isIdentStart flavour)
-              <+> (many $ pred isIdentTrailing )
+ident : AutoShift False Char
+ident ('.'::x::t) = if isIdentStart x then ident t else Succ ('.'::x::t)
+ident (x :: t)    = if isIdentTrailing x then ident t else Succ (x::t)
+ident []          = Succ []
 
-identNormal : Lexer
-identNormal = ident Normal
+opChars : List Char
+opChars = unpack ":!#$%&*+./<=>?@\\^|-~"
 
-namespaceIdent : Lexer
-namespaceIdent = ident Capitalised <+> many (is '.' <+> ident Capitalised <+> expect (is '.'))
+%inline isOp : Char -> Bool
+isOp c = c `elem` opChars
 
-namespacedIdent : Lexer
-namespacedIdent = namespaceIdent <+> opt (is '.' <+> identNormal)
+toOp : SnocList Char -> Token
+toOp [<'='] = '='
+toOp sc     = Op $ pack sc
 
-public export
-data ShowToken = StringLit String
-               | NatLit    String
-               | DblLit    String
-               | CharLit   String
-               | Ident     String
-               | Symbol    String
-               | Op        String
-               | Space     String
+sfx :
+     (SnocList Char -> Token)
+  -> ShiftRes {t = Char} True [<] ts
+  -> SuffixRes True Char ts Token
+sfx = suffix
 
-%runElab derive "ShowToken" [Show,Eq]
+%inline nat,dbl :
+     ShiftRes {t = Char} True [<] ts
+  -> SuffixRes True Char ts Token
+nat = suffix (Lit . Natural . pack)
 
-holeIdent : Lexer
-holeIdent = is '?' <+> identNormal
+dbl = suffix $ \sc =>
+  if all isDigit sc then Lit (Natural $ pack sc) else Lit (Dbl $ pack sc)
 
-dotIdent : Lexer
-dotIdent = is '.' <+> identNormal
+strLit : AutoShift False Char
+strLit ('\\' :: x :: xs) = strLit xs
+strLit ('"' :: xs)       = Succ xs
+strLit (x :: xs)         = strLit xs
+strLit []                = Stop
 
-pragma : Lexer
-pragma = is '%' <+> identNormal
+charLit : AutoShift False Char
+charLit ('\\' :: x :: xs) = charLit xs
+charLit ('\'' :: xs)      = Succ xs
+charLit (x :: xs)         = charLit xs
+charLit []                = Stop
 
-isOpChar : Char -> Bool
-isOpChar c = c `elem` (unpack ":!#$%&*+./<=>?@\\^|-~")
+tok : Tok True Char Token
+tok ('0' :: 'x' :: t) = nat $ takeWhile1 {b = True} isHexDigit t
+tok ('0' :: 'X' :: t) = nat $ takeWhile1 {b = True} isHexDigit t
+tok ('0' :: 'o' :: t) = nat $ takeWhile1 {b = True} isOctDigit t
+tok ('0' :: 'b' :: t) = nat $ takeWhile1 {b = True} isBinDigit t
+tok ('(' :: t)  = Succ '(' t
+tok (')' :: t)  = Succ ')' t
+tok ('{' :: t)  = Succ '{' t
+tok ('}' :: t)  = Succ '}' t
+tok ('[' :: t)  = Succ '[' t
+tok (']' :: t)  = Succ ']' t
+tok (',' :: t)  = Succ ',' t
+tok ('\'' :: t) = sfx (Lit . Chr . pack) $ charLit t
+tok ('"'  :: t) = sfx (Lit . Str . pack) $ strLit t
+tok (x :: t)  =
+  if      isOp x then sfx toOp $ takeWhile isOp t
+  else if isDigit x then dbl $ number (x::t) @{Same}
+  else if isIdentStart x then sfx (Id . pack) $ ident t
+  else Fail
+tok []         = Fail
 
-op : Lexer
-op = some (pred isOpChar)
+toErr : (l,c : Nat) -> Char -> List Char -> Either PSErr a
+toErr l c '"'  cs = custom (oneChar l c) (Unclosed '"')
+toErr l c '\'' cs = custom (oneChar l c) (Unclosed '\'')
+toErr l c x    cs = custom (oneChar l c) (Unknown x)
 
-isSymbol : Char -> Bool
-isSymbol c = c `elem` (unpack "()[]{},")
+post :
+     List (Bounded Token)
+  -> SnocList (Bounded Token)
+  -> List (Bounded Token)
+post xs (sx :< B '(' c :< B (Op s) d :< B ')' e) = case sx of
+  sy :< B (Id n) a :< B (Op ".") b =>
+    post (B (Id $ MkName "\{n}.(\{s})") (a <+> b <+> c <+> d <+> e) :: xs) sy
+  _ => post (B (Id $ MkName "(\{s})") (c <+> d <+> e) :: xs) sx
+post xs (sx :< x) = post (x :: xs) sx
+post xs [<]       = xs
 
-parseOp : String -> ShowToken
-parseOp "=" = Symbol "="
-parseOp s   = Op s
-
-anyIdent : Lexer
-anyIdent =  choice {t = List} [ namespacedIdent
-                              , identNormal
-                              , dotIdent
-                              , holeIdent
-                              , pragma
-                              ]
-
-doubleLit : Lexer
-doubleLit = digits <+> is '.' <+> digits <+> opt
-             ((is 'e' <|> is 'E') <+> opt (is '-' <|> is '+') <+> digits)
-
-tokens : TokenMap ShowToken
-tokens = [ (doubleLit, DblLit)
-         , (binLit <|> octLit <|> hexLit <|> digits, NatLit)
-         , (stringLit, StringLit)
-         , (charLit, CharLit)
-         , (anyIdent, Ident)
-         , (op, parseOp)
-         , (pred isSymbol, Symbol)
-         , (spaces, Space)
-         ]
-
-public export
-data Err = LexErr Int Int String
-         | ParseErr String
-         | EOIErr (List $ WithBounds ShowToken)
-
-%runElab derive "Err" [Show,Eq]
+go :
+     SnocList (Bounded Token)
+ -> (l,c   : Nat)
+ -> (cs    : List Char)
+ -> (0 acc : SuffixAcc cs)
+ -> Either PSErr (List (Bounded Token))
+go sx l c ('\n' :: xs) (SA r) = go sx (l+1) 0 xs r
+go sx l c (x :: xs)    (SA r) =
+  if isSpace x
+     then go sx l (c+1) xs r
+     else case tok (x::xs) of
+       Succ t xs' @{prf} =>
+         let c2 := c + toNat prf
+          in go (sx :< bounded t l c l c2) l c2 xs' r
+       Fail => toErr l c x xs
+go sx l c [] _ = Right (post [] sx)
 
 export
-lex : String -> Either Err (List $ WithBounds ShowToken)
-lex str = case lex tokens str of
-               (ts, (_, _, "")) => Right $ filter (notSpace . val) ts
-               (_, (a,b,c))     => Left $ LexErr a b c
-  where notSpace : ShowToken -> Bool
-        notSpace (Space _) = False
-        notSpace _         = True
-
-export
-lex_ : String -> Either Err (List ShowToken)
-lex_ = (map . map) val . lex
+tokens : String -> Either PSErr (List (Bounded Token))
+tokens s = go [<] 0 0 (unpack s) suffixAcc
 
 --------------------------------------------------------------------------------
 --          Parser
 --------------------------------------------------------------------------------
 
-Rule : Type -> Type
-Rule = Grammar () ShowToken True
+toInfx : List (VName,Value) -> SnocList (VName,Value) -> Value -> Value
+toInfx xs (sx :< (n,v')) v = toInfx ((n,v) :: xs) sx v'
+toInfx [] [<] v = v
+toInfx ps [<] v = InfixCons v ps
 
-EmptyRule : Type -> Type
-EmptyRule = Grammar () ShowToken False
+toTpl : List Value -> Value
+toTpl [] = Con "()" []
+toTpl (x :: []) = x
+toTpl (x :: (y :: xs)) = Tuple x y xs
 
-constant : Rule Value
-constant = terminal "Expected constant" $
-                     \case CharLit c    => Just $ Chr c
-                           DblLit d     => Just $ Dbl d
-                           StringLit s  => Just $ Str s
-                           NatLit s     => Just $ Natural s
-                           _            => Nothing
+0 Rule : Bool -> Type -> Type
+Rule b t =
+     (xs : List $ Bounded Token)
+  -> (0 acc : SuffixAcc xs)
+  -> Res b Token xs Err t
 
-identRule : Rule VName
-identRule = terminal "Expected identifier" $
-                     \case Ident s => Just $ MkName s
-                           _       => Nothing
+list : Bounds -> SnocList Value -> Rule True Value
 
-operator : Rule VName
-operator = terminal "Expected operator" $
-                    \case Op s => Just $ MkName s
-                          _    => Nothing
+tpl : Bounds -> SnocList Value -> Rule True Value
 
-minus : Rule ()
-minus = terminal "Expected minus sign" $
-                 \case Op "-" => Just ()
-                       _      => Nothing
+rec : VName -> Bounds -> SnocList (VName,Value) -> Rule True Value
 
-symbol : String -> Rule ()
-symbol s = terminal ("Expected " ++ s) $
-                    \case Symbol s2 => if s == s2 then Just ()
-                                                  else Nothing
-                          _         => Nothing
+infx : SnocList (VName,Value) -> Rule True Value
 
-comma : Rule ()
-comma = symbol ","
+args : VName -> SnocList Value -> Rule False Value
 
-equals : Rule ()
-equals = symbol "="
+value,single,applied : Rule True Value
 
-parens : {c : _} -> Inf (Grammar () ShowToken c a) -> Rule a
-parens g = symbol "(" *> g <* symbol ")"
+applied (B (Lit y) _ :: xs) _        = Succ y xs
+applied (B (Id y) _ :: xs) _         = Succ (Con y []) xs
+applied (B '[' _ :: B ']' _ :: xs) _ = Succ (Lst []) xs
+applied (B '[' b :: xs) (SA r)       = succ $ list b [<] xs r
+applied (B '(' _ :: B ')' _ :: xs) _ = Succ (Con "()" []) xs
+applied (B '(' b :: xs) (SA r)       = succ $ tpl b [<] xs r
+applied (x::xs) _                    = unexpected x
+applied [] _                         = eoi
 
-brackets : {c : _} -> Inf (Grammar () ShowToken c a) -> Rule a
-brackets g = symbol "[" *> g <* symbol "]"
+single (B (Op "-") _ :: xs) (SA r)                = succ $ map Neg (applied xs r)
+single (B (Id y) _ :: B '{' _ :: B '}' _ :: xs) _ = Succ (Rec y []) xs
+single (B (Id y) _ :: B '{' b :: xs) (SA r)       = succ $ rec y b [<] xs r
+single (B (Id y) _ :: xs) (SA r)                  = succ $ args y [<] xs r
+single xs sa                                      = applied xs sa
 
-braces : {c : _} -> Inf (Grammar () ShowToken c a) -> Rule a
-braces g = symbol "{" *> g <* symbol "}"
+value xs sa = infx [<] xs sa
 
-identOrOp : Rule VName
-identOrOp = identRule <|>
-            map (\(MkName n) => MkName ("(" ++ n ++ ")")) (parens operator)
+args n sv xs sa@(SA r) = case applied xs sa of
+  Succ v xs' => weaken $ succ $ args n (sv :< v) xs' r
+  Fail _     => Succ (Con n $ sv <>> []) xs
 
-unit : Rule Value
-unit =  symbol "(" *> symbol ")" $> Con "()" []
+list b sv xs sa@(SA r) = case value xs sa of
+  Succ v (B ',' _ :: ys) => succ $ list b (sv :< v) ys r
+  Succ v (B ']' _ :: ys) => Succ (Lst $ sv <>> [v]) ys
+  Succ v (y::_)          => unexpected y
+  Succ _ []              => custom b (Unclosed '[')
+  Fail (B EOI _)         => custom b (Unclosed '[')
+  Fail err               => Fail err
 
-mutual
-  covering
-  value : Rule Value
-  value = choice {t = List} [ constant
-                            , unit
-                            , negated
-                            , list
-                            , tuple
-                            , rec
-                            , con
-                            , infx
-                            ]
+tpl b sv xs sa@(SA r) = case value xs sa of
+  Succ v (B ',' _ :: ys) => succ $ tpl b (sv :< v) ys r
+  Succ v (B ')' _ :: ys) => Succ (toTpl $ sv <>> [v]) ys
+  Succ v (y::_)          => unexpected y
+  Succ _ []              => custom b (Unclosed '(')
+  Fail (B EOI _)         => custom b (Unclosed '(')
+  Fail err               => Fail err
 
-  covering
-  applied : Rule Value
-  applied =   constant
-          <|> unit
-          <|> map (\n => Con n []) identOrOp
-          <|> list
-          <|> tuple
-          <|> parens value
+infx sv xs sa@(SA r) = case single xs sa of
+  Succ v (B (Op n) _ :: ys) => succ $ infx (sv :< (n,v)) ys r
+  Succ v ys                 => Succ (toInfx [] sv v) ys
+  Fail err                  => Fail err
 
-  covering
-  negated : Rule Value
-  negated = minus *> map Neg applied
+rec n b sv (B (Id y) _ :: B '=' _ :: xs) (SA r) = case succ $ value xs r of
+  Succ v (B ',' _ :: ys) => succ $ rec n b (sv :< (y,v)) ys r
+  Succ v (B '}' _ :: ys) => Succ (Rec n $ sv <>> [(y,v)]) ys
+  Succ v (y::_)          => unexpected y
+  Succ _ _               => custom b (Unclosed '{')
+  Fail (B EOI _)         => custom b (Unclosed '{')
+  Fail err               => Fail err
+rec _ _ _ (B (Id _) _ ::x::xs) _ = expected x.bounds '='
+rec _ _ _ (x::xs) _ = custom x.bounds ExpectedId
+rec _ _ _ [] _ = eoi
 
-  covering
-  tuple : Rule Value
-  tuple = parens $ do (v1::v2::vs) <- sepBy comma value
-                        | vs => fail "Tuple needs at least two values"
-                      pure (Tuple v1 v2 vs)
+export
+parseValueE : String -> Either (ReadError Token Err) Value
+parseValueE str = case tokens str of
+  Left x   => Left (parseFailed Virtual $ pure x)
+  Right ts => case value ts suffixAcc of
+    Fail err           => Left (parseFailed Virtual $ pure err)
+    Succ res []        => Right res
+    Succ res (x :: xs) => Left (parseFailed Virtual $ pure $ Unexpected <$> x)
 
-  covering
-  list : Rule Value
-  list = Lst <$> brackets (sepBy comma value)
-
-  covering
-  pair : Rule (VName,Value)
-  pair = [| (,) identOrOp (equals *> value) |]
-
-  covering
-  rec : Rule Value
-  rec = [| Rec identOrOp (braces $ sepBy comma pair) |]
-
-  covering
-  con : Rule Value
-  con = [| Con identOrOp (many applied) |]
-
-  covering
-  infx : Rule Value
-  infx = uncurry InfixCons <$> go
-    where go : Rule (Value,List (VName,Value))
-          go = do v    <- applied
-                  op   <- operator
-                  map (\(v2,ps) => (v,(op,v2) :: ps)) go <|>
-                  map (\v2 => (v, [(op,v2)])) applied
-
-export covering
-parseValueE : String -> Either Err Value
-parseValueE str = lex str >>= doParse
-  where covering doParse : List (WithBounds ShowToken) -> Either Err Value
-        doParse ts =
-          case parse value ts of
-               Left (Error str _ ::: _) => Left $ ParseErr str
-               Right (v,[])             => Right v
-               Right (_,ts)             => Left $ EOIErr ts
-
-export covering
+export
 parseValue : String -> Maybe Value
 parseValue = either (const Nothing) Just . parseValueE

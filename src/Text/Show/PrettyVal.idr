@@ -4,7 +4,6 @@ import Data.List
 import Data.List1
 import Data.Vect
 import Text.Show.Value
-import Text.Lexer
 
 ||| A class for types that may be reified into a value.
 ||| Instances of this class may be derived automatically,
@@ -17,6 +16,10 @@ interface PrettyVal a where
 --------------------------------------------------------------------------------
 --          Implementations
 --------------------------------------------------------------------------------
+
+public export
+PrettyVal Void where
+  prettyVal v impossible
 
 public export
 PrettyVal Value where

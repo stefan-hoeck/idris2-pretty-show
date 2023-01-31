@@ -4,7 +4,10 @@ authors    = "stefan-hoeck"
 sourcedir  = "src"
 version    = 0.6.0
 depends    = pretty-show
+           , contrib
 
 executable = pretty-show-test
+
+modules = Test.Mini
 
 main = Main

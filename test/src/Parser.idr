@@ -1,9 +1,11 @@
 module Parser
 
 import Data.List
-import Text.Show.Pretty
 import Test.Mini
-import Text.Lexer
+import Text.Parse.Manual
+import Text.Show.Pretty
+
+%default total
 
 --------------------------------------------------------------------------------
 --          String Tokens
@@ -16,7 +18,7 @@ strings : List String
 strings = map show ["0 foo","x y z", "    ", "\t\t"]
 
 chars : List String
-chars = map show ['a','z','A','Z','0','9','\t','ä','ü']
+chars = map show (the (List Char) ['a','z','A','Z','0','9','\t','ä','ü'])
 
 spaceStrs : List String
 spaceStrs = ["   ","\r\n","\n","\t\t \n"]
@@ -28,7 +30,7 @@ idents : List String
 idents = ["idents", "nat_token", "Nat_Token", "foo_bar__", "_any123"]
 
 identOrOps : List String
-identOrOps = idents ++ map (\o => "(" ++ o ++ ")") ops
+identOrOps = idents ++ map (\o => "(\{o})") ops
 
 symbols : List String
 symbols = ["(",")","[","]","{","}",",","="]
@@ -36,125 +38,149 @@ symbols = ["(",")","[","]","{","}",",","="]
 doubles : List String
 doubles = ["1.234", "12.0e-2", "0.334E+10", "0.1234E10"]
 
+mapPair : (a -> b) -> a -> (a,b)
+mapPair f x = (x, f x)
+
+mapPairs : Functor f => (a -> b) -> f a -> f (a,b)
+mapPairs g = map (mapPair g)
+
 --------------------------------------------------------------------------------
 --          Lexing
 --------------------------------------------------------------------------------
 
-testLex : String -> List (String, List ShowToken) -> IO Bool
-testLex s ps = do putStrLn ("Lexing " ++ s)
-                  report $ runEq lex_ (map (map Right) ps)
+lex : String -> Either PSErr (List Token)
+lex = map (map val) . tokens
 
-natTokens : List (String,List ShowToken)
-natTokens = map (\s => (s, [NatLit s])) nats
+testLex : String -> List (String, List Token) -> IO Bool
+testLex s ps = do
+  putStrLn ("Lexing " ++ s)
+  report $ runEq lex (map (map Right) ps)
 
-stringTokens : List (String,List ShowToken)
-stringTokens = map (\s => (s, [StringLit s])) strings
+natTokens : List (String,List Token)
+natTokens = mapPairs (pure . Lit . Natural) nats
 
-charTokens : List (String,List ShowToken)
-charTokens = map (\s => (s, [CharLit s])) chars
+stringTokens : List (String,List Token)
+stringTokens = mapPairs (pure . Lit . Str) strings
 
-doubleTokens : List (String,List ShowToken)
-doubleTokens = map (\s => (s, [DblLit s])) doubles
+charTokens : List (String,List Token)
+charTokens = mapPairs (pure . Lit . Chr) chars
 
-spaceTokens : List (String,List ShowToken)
-spaceTokens = map (\s => (s, [])) spaceStrs
+doubleTokens : List (String,List Token)
+doubleTokens = mapPairs (pure . Lit . Dbl) doubles
 
-identTokens : List (String,List ShowToken)
-identTokens = map (\s => (s, [Ident s])) idents
+spaceTokens : List (String,List Token)
+spaceTokens = mapPairs (const []) spaceStrs
 
-opTokens : List (String,List ShowToken)
-opTokens = map (\s => (s, [Op s])) ops
+identTokens : List (String,List Token)
+identTokens = mapPairs (pure . Id . MkName) idents
 
-symbolTokens : List (String,List ShowToken)
-symbolTokens = map (\s => (s, [Symbol s])) symbols
+opTokens : List (String,List Token)
+opTokens = mapPairs (pure . Op . MkName) ops
+
+symb : String -> Token
+symb "(" = '('
+symb ")" = ')'
+symb "[" = '['
+symb "]" = ']'
+symb "{" = '{'
+symb "}" = '}'
+symb "," = ','
+symb "=" = '='
+symb s   = Op $ MkName s
+
+symbolTokens : List (String,List Token)
+symbolTokens = mapPairs (pure . symb) symbols
 
 export
 lexTest : IO Bool
-lexTest = testAll [ testLex "nat literals" natTokens
-                  , testLex "string literals" stringTokens
-                  , testLex "char literals" charTokens
-                  , testLex "float literals" doubleTokens
-                  , testLex "spaces" spaceTokens
-                  , testLex "identifiers" identTokens
-                  , testLex "operators" opTokens
-                  , testLex "symbols" symbolTokens
-                  ]
+lexTest = testAll [
+    testLex "nat literals" natTokens
+  , testLex "string literals" stringTokens
+  , testLex "char literals" charTokens
+  , testLex "float literals" doubleTokens
+  , testLex "spaces" spaceTokens
+  , testLex "identifiers" identTokens
+  , testLex "operators" opTokens
+  , testLex "symbols" symbolTokens
+  ]
 
 --------------------------------------------------------------------------------
 --          Parsing
 --------------------------------------------------------------------------------
 
 testParse : String -> List (String, Value) -> IO Bool
-testParse s ps = do putStrLn ("Parsing " ++ s)
-                    report $ runEq parseValueE (map (map Right) ps)
+testParse s ps = do
+  putStrLn ("Parsing " ++ s)
+  report $ runEq parseValueE (map (map Right) ps)
 
 prims : List (String,Value)
-prims =  map (\s => (s, Chr s)) chars
-      ++ map (\s => (s, Natural s)) nats
-      ++ map (\s => (s, Dbl s)) doubles
-      ++ map (\s => (s, Str s)) strings
-      ++ map (\s => (s, Con (MkName s) [])) identOrOps
+prims =
+     mapPairs Chr chars
+  ++ mapPairs Natural nats
+  ++ mapPairs Dbl doubles
+  ++ mapPairs Str strings
+  ++ mapPairs ((`Con` []) . MkName) identOrOps
 
 negated : List (String,Value)
-negated =  map (\s => ("-" ++ s, Neg $ Natural s)) nats
-        ++ map (\s => ("-" ++ s, Neg $ Dbl s)) doubles
+negated =
+     map (\s => ("-" ++ s, Neg $ Natural s)) nats
+  ++ map (\s => ("-" ++ s, Neg $ Dbl s)) doubles
 
 singleCons : List (String,Value)
-singleCons = do (s,v) <- prims
-                ident <- identOrOps
-                pure ( ident ++ " " ++ s
-                     , Con (MkName ident) [v]
-                     )
+singleCons = do
+  (s,v) <- prims
+  ident <- identOrOps
+  pure ("\{ident} \{s}", Con (MkName ident) [v])
 
 doubleCons : List (String,Value)
-doubleCons = do (ps,v)  <- prims
-                ident   <- identOrOps
-                (cs,sc) <- take 100 singleCons
-                pure ( ident ++ " " ++ ps ++ "(" ++ cs ++ ")"
-                     , Con (MkName ident) [v,sc]
-                     )
+doubleCons = do
+  (ps,v)  <- prims
+  ident   <- identOrOps
+  (cs,sc) <- take 100 singleCons
+  pure ("\{ident} \{ps}(\{cs})", Con (MkName ident) [v,sc])
 
 emptyRecs : List (String,Value)
-emptyRecs = do i <- identOrOps
-               pure (i ++ " {}", Rec (MkName i) [])
+emptyRecs = do
+  i <- identOrOps
+  pure ("\{i} {}", Rec (MkName i) [])
 
 primsOrCons : List (String,Value)
 primsOrCons = prims ++ take 10 singleCons ++ take 20 doubleCons
 
 recs1 : List (String,Value)
-recs1 = do (ps,p)  <- primsOrCons
-           ident1  <- identOrOps
-           ident2  <- identOrOps
-           pure  ( concat {t = List} [ ident1, " { "
-                                     , ident2, " = ", ps
-                                     , " } "
-                                     ]
-                 , Rec (MkName ident1) [(MkName ident2, p)]
-                 )
+recs1 = do
+  (ps,p) <- primsOrCons
+  i1     <- MkName <$> identOrOps
+  i2     <- MkName <$> identOrOps
+  pure ("\{i1} {\{i2} = \{ps} }", Rec i1 [(i2, p)])
 
+rec3 :
+     (ps : (String,Value))
+  -> (i1,i2,i3 : VName)
+  -> (cs : (String,Value))
+  -> (String, Value)
+rec3 (ps,p) i1 i2 i3 (cs,sc) =
+  ("\{i1} {\{i2} = \{ps}, \{i3} = \{cs}}", Rec i1 [(i2, p), (i3, sc)])
+
+export
 recs2 : List (String,Value)
-recs2 = do (ps,p)  <- take 20 primsOrCons
-           ident1  <- take 2 identOrOps
-           ident2  <- take 2 identOrOps
-           ident3  <- take 2 identOrOps
-           (cs,sc) <- take 5 doubleCons
-           pure  ( concat {t = List} [ ident1, " { "
-                                     , ident2, " = ", ps, ", "
-                                     , ident3, " = ", cs
-                                     , " } "
-                                     ]
-                 , Rec (MkName ident1) [ (MkName ident2, p)
-                                       , (MkName ident3, sc)
-                                       ]
-                 )
+recs2 =
+  [| rec3
+     (List.take 20 primsOrCons)
+     (MkName <$> List.take 2 identOrOps)
+     (MkName <$> List.take 2 identOrOps)
+     (MkName <$> List.take 2 identOrOps)
+     (List.take 5 doubleCons)
+  |]
 
 export
 parseTest : IO Bool
-parseTest = testAll [ testParse "primities" prims
-                    , testParse "negated" negated
-                    , testParse "cons arity 1" singleCons
-                    , testParse "cons arity 2" doubleCons
-                    , testParse "empty records" emptyRecs
-                    , testParse "records of arity 1" recs1
-                    , testParse "records of arity 2" recs2
-                    ]
+parseTest = testAll
+  [ testParse "primitives" prims
+  , testParse "negated" negated
+  , testParse "cons arity 1" singleCons
+  , testParse "cons arity 2" doubleCons
+  , testParse "empty records" emptyRecs
+  , testParse "records of arity 1" recs1
+  , testParse "records of arity 2" recs2
+  ]
