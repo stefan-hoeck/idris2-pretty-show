@@ -20,9 +20,3 @@ type   = "git"
 url    = "https://github.com/stefan-hoeck/idris2-elab-util"
 commit = "latest:prettier"
 ipkg   = "elab-pretty.ipkg"
-
-[custom.all.parser]
-type   = "git"
-url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
-ipkg   = "parser.ipkg"
