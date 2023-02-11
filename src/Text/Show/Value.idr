@@ -240,11 +240,6 @@ tok (x :: t)  =
   else unknown t
 tok []         = failEmpty
 
---toErr : (l,c : Nat) -> Char -> List Char -> Either PSErr a
---toErr l c '"'  cs = custom (oneChar l c) (Unclosed '"')
---toErr l c '\'' cs = custom (oneChar l c) (Unclosed '\'')
---toErr l c x    cs = custom (oneChar l c) (Unknown x)
---
 post :
      List (Bounded Token)
   -> SnocList (Bounded Token)
@@ -333,18 +328,12 @@ args n sv xs sa@(SA r) = case applied xs sa of
 list b sv xs sa@(SA r) = case value xs sa of
   Succ v (B ',' _ :: ys)  => succ $ list b (sv :< v) ys r
   Succ v (B ']' _ :: ys)  => Succ (Lst $ sv <>> [v]) ys
-  Succ v (y::_)           => unexpected y
-  Succ _ []               => unclosed b '['
-  Fail (B (Reason EOI) _) => unclosed b '['
-  Fail err                => Fail err
+  res                     => failInParen b '[' res
 
 tpl b sv xs sa@(SA r) = case value xs sa of
   Succ v (B ',' _ :: ys)  => succ $ tpl b (sv :< v) ys r
   Succ v (B ')' _ :: ys)  => Succ (toTpl $ sv <>> [v]) ys
-  Succ v (y::_)           => unexpected y
-  Succ _ []               => unclosed b '('
-  Fail (B (Reason EOI) _) => unclosed b '('
-  Fail err                => Fail err
+  res                     => failInParen b '(' res
 
 infx sv xs sa@(SA r) = case single xs sa of
   Succ v (B (Op n) _ :: ys) => succ $ infx (sv :< (n,v)) ys r
@@ -352,12 +341,9 @@ infx sv xs sa@(SA r) = case single xs sa of
   Fail err                  => Fail err
 
 rec n b sv (B (Id y) _ :: B '=' _ :: xs) (SA r) = case succ $ value xs r of
-  Succ v (B ',' _ :: ys)  => succ $ rec n b (sv :< (y,v)) ys r
-  Succ v (B '}' _ :: ys)  => Succ (Rec n $ sv <>> [(y,v)]) ys
-  Succ v (y::_)           => unexpected y
-  Res.Succ _ _            => unclosed b '{'
-  Fail (B (Reason EOI) _) => unclosed b '{'
-  Fail err                => Fail err
+  Res.Succ v (B ',' _ :: ys)  => succ $ rec n b (sv :< (y,v)) ys r
+  Succ v (B '}' _ :: ys)      => Succ (Rec n $ sv <>> [(y,v)]) ys
+  res                         => failInParen b '{' res
 rec _ _ _ (B (Id _) _ ::x::xs) _ = expected x.bounds '='
 rec _ _ _ (x::xs) _ = custom x.bounds ExpectedId
 rec _ _ _ [] _ = eoi
