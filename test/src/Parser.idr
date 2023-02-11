@@ -48,7 +48,7 @@ mapPairs g = map (mapPair g)
 --          Lexing
 --------------------------------------------------------------------------------
 
-lex : String -> Either PSErr (List Token)
+lex : String -> Either (Bounded PSErr) (List Token)
 lex = map (map val) . tokens
 
 testLex : String -> List (String, List Token) -> IO Bool

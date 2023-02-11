@@ -151,19 +151,19 @@ PrettyVal nms p =
 
 %runElab derive "Text.Show.Value.Err" [PrettyVal]
 
-%runElab derive "Text.Lex.Bounded.Bounds" [PrettyVal]
+%runElab derive "Text.Bounded.Position" [PrettyVal]
 
-%runElab derive "Text.Lex.Bounded.Bounded" [PrettyVal]
+%runElab derive "Text.Bounded.Bounds" [PrettyVal]
 
-%runElab derive "Text.Lex.Tokenizer.StopReason" [PrettyVal]
+%runElab derive "Text.Bounded.Bounded" [PrettyVal]
 
-%runElab derive "Text.Parse.FC.Origin" [PrettyVal]
+%runElab derive "Text.ParseError.StopReason" [PrettyVal]
 
-%runElab derive "Text.Parse.FC.FileContext" [PrettyVal]
+%runElab derive "Text.FC.Origin" [PrettyVal]
 
-%runElab derive "Text.Parse.Err.ParseError" [PrettyVal]
+%runElab derive "Text.FC.FileContext" [PrettyVal]
 
-%runElab derive "Text.Parse.Err.ReadError" [PrettyVal]
+%runElab derive "Text.ParseError.ParseError" [PrettyVal]
 
 -- System
 
