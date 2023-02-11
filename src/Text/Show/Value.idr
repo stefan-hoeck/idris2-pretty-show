@@ -157,15 +157,13 @@ Interpolation Token where
 
 public export
 data Err : Type where
-  Unclosed   : Char -> Err
-  Unknown    : Char -> Err
   ExpectedId : Err
 
 %runElab derive "Err" [Show,Eq]
 
 public export
 0 PSErr : Type
-PSErr = Bounded (ParseError Token Err)
+PSErr = ParseError Token Err
 
 public export %inline
 fromChar : Char -> Token
@@ -197,31 +195,31 @@ toOp sc     = Op $ cast sc
 
 sfx :
      (SnocList Char -> Token)
-  -> ShiftRes {t = Char} True [<] ts
-  -> SuffixRes True Char ts Token
+  -> ShiftRes True Char [<] ts
+  -> SuffixRes Char ts Token
 sfx = suffix
 
 %inline nat,dbl :
-     ShiftRes {t = Char} True [<] ts
-  -> SuffixRes True Char ts Token
+     ShiftRes  True Char [<] ts
+  -> SuffixRes Char ts Token
 nat = suffix (Lit . Natural . cast)
 
 dbl = suffix $ \sc =>
   if all isDigit sc then Lit (Natural $ cast sc) else Lit (Dbl $ cast sc)
 
-strLit : AutoShift False Char
-strLit ('\\' :: x :: xs) = strLit xs
+strLit : AutoShift True Char
+strLit ('\\' :: x :: xs) = strLit {b} xs
 strLit ('"' :: xs)       = Succ xs
-strLit (x :: xs)         = strLit xs
-strLit []                = Stop
+strLit (x :: xs)         = strLit {b} xs
+strLit []                = failEOI sh
 
-charLit : AutoShift False Char
-charLit ('\\' :: x :: xs) = charLit xs
+charLit : AutoShift True Char
+charLit ('\\' :: x :: xs) = charLit {b} xs
 charLit ('\'' :: xs)      = Succ xs
-charLit (x :: xs)         = charLit xs
-charLit []                = Stop
+charLit (x :: xs)         = charLit {b} xs
+charLit []                = failEOI sh
 
-tok : Tok True Char Token
+tok : Tok Char Token
 tok ('0' :: 'x' :: t) = nat $ takeWhile1 {b = True} isHexDigit t
 tok ('0' :: 'X' :: t) = nat $ takeWhile1 {b = True} isHexDigit t
 tok ('0' :: 'o' :: t) = nat $ takeWhile1 {b = True} isOctDigit t
@@ -233,20 +231,20 @@ tok ('}' :: t)  = Succ '}' t
 tok ('[' :: t)  = Succ '[' t
 tok (']' :: t)  = Succ ']' t
 tok (',' :: t)  = Succ ',' t
-tok ('\'' :: t) = sfx (Lit . Chr . cast) $ charLit t
-tok ('"'  :: t) = sfx (Lit . Str . cast) $ strLit t
+tok ('\'' :: t) = sfx (Lit . Chr . cast) $ charLit {b = True} t
+tok ('"'  :: t) = sfx (Lit . Str . cast) $ strLit {b = True} t
 tok (x :: t)  =
   if      isOp x then sfx toOp $ takeWhile isOp t
-  else if isDigit x then dbl $ number (x::t) @{Same}
+  else if isDigit x then dbl $ number [<] (x::t)
   else if isIdentStart x then sfx (Id . cast) $ ident t
-  else Fail
-tok []         = Fail
+  else unknown t
+tok []         = failEmpty
 
-toErr : (l,c : Nat) -> Char -> List Char -> Either PSErr a
-toErr l c '"'  cs = custom (oneChar l c) (Unclosed '"')
-toErr l c '\'' cs = custom (oneChar l c) (Unclosed '\'')
-toErr l c x    cs = custom (oneChar l c) (Unknown x)
-
+--toErr : (l,c : Nat) -> Char -> List Char -> Either PSErr a
+--toErr l c '"'  cs = custom (oneChar l c) (Unclosed '"')
+--toErr l c '\'' cs = custom (oneChar l c) (Unclosed '\'')
+--toErr l c x    cs = custom (oneChar l c) (Unknown x)
+--
 post :
      List (Bounded Token)
   -> SnocList (Bounded Token)
@@ -260,24 +258,24 @@ post xs [<]       = xs
 
 go :
      SnocList (Bounded Token)
- -> (l,c   : Nat)
+ -> (pos   : Position)
  -> (cs    : List Char)
  -> (0 acc : SuffixAcc cs)
- -> Either PSErr (List (Bounded Token))
-go sx l c ('\n' :: xs) (SA r) = go sx (l+1) 0 xs r
-go sx l c (x :: xs)    (SA r) =
+ -> Either (Bounded PSErr) (List (Bounded Token))
+go sx pos ('\n' :: xs) (SA r) = go sx (incLine pos) xs r
+go sx pos (x :: xs)    (SA r) =
   if isSpace x
-     then go sx l (c+1) xs r
+     then go sx (incCol pos) xs r
      else case tok (x::xs) of
        Succ t xs' @{prf} =>
-         let c2 := c + toNat prf
-          in go (sx :< bounded t l c l c2) l c2 xs' r
-       Fail => toErr l c x xs
-go sx l c [] _ = Right (post [] sx)
+         let pos2 := addCol (toNat prf) pos
+          in go (sx :< bounded t pos pos2) pos2 xs' r
+       Stop start errEnd r => Left $ boundedErr pos start errEnd (Reason r)
+go sx pos [] _ = Right (post [] sx)
 
 export
-tokens : String -> Either PSErr (List (Bounded Token))
-tokens s = go [<] 0 0 (unpack s) suffixAcc
+tokens : String -> Either (Bounded PSErr) (List (Bounded Token))
+tokens s = go [<] begin (unpack s) suffixAcc
 
 --------------------------------------------------------------------------------
 --          Parser
@@ -333,20 +331,20 @@ args n sv xs sa@(SA r) = case applied xs sa of
   Fail _     => Succ (Con n $ sv <>> []) xs
 
 list b sv xs sa@(SA r) = case value xs sa of
-  Succ v (B ',' _ :: ys) => succ $ list b (sv :< v) ys r
-  Succ v (B ']' _ :: ys) => Succ (Lst $ sv <>> [v]) ys
-  Succ v (y::_)          => unexpected y
-  Succ _ []              => custom b (Unclosed '[')
-  Fail (B EOI _)         => custom b (Unclosed '[')
-  Fail err               => Fail err
+  Succ v (B ',' _ :: ys)  => succ $ list b (sv :< v) ys r
+  Succ v (B ']' _ :: ys)  => Succ (Lst $ sv <>> [v]) ys
+  Succ v (y::_)           => unexpected y
+  Succ _ []               => unclosed b '['
+  Fail (B (Reason EOI) _) => unclosed b '['
+  Fail err                => Fail err
 
 tpl b sv xs sa@(SA r) = case value xs sa of
-  Succ v (B ',' _ :: ys) => succ $ tpl b (sv :< v) ys r
-  Succ v (B ')' _ :: ys) => Succ (toTpl $ sv <>> [v]) ys
-  Succ v (y::_)          => unexpected y
-  Succ _ []              => custom b (Unclosed '(')
-  Fail (B EOI _)         => custom b (Unclosed '(')
-  Fail err               => Fail err
+  Succ v (B ',' _ :: ys)  => succ $ tpl b (sv :< v) ys r
+  Succ v (B ')' _ :: ys)  => Succ (toTpl $ sv <>> [v]) ys
+  Succ v (y::_)           => unexpected y
+  Succ _ []               => unclosed b '('
+  Fail (B (Reason EOI) _) => unclosed b '('
+  Fail err                => Fail err
 
 infx sv xs sa@(SA r) = case single xs sa of
   Succ v (B (Op n) _ :: ys) => succ $ infx (sv :< (n,v)) ys r
@@ -354,24 +352,24 @@ infx sv xs sa@(SA r) = case single xs sa of
   Fail err                  => Fail err
 
 rec n b sv (B (Id y) _ :: B '=' _ :: xs) (SA r) = case succ $ value xs r of
-  Succ v (B ',' _ :: ys) => succ $ rec n b (sv :< (y,v)) ys r
-  Succ v (B '}' _ :: ys) => Succ (Rec n $ sv <>> [(y,v)]) ys
-  Succ v (y::_)          => unexpected y
-  Succ _ _               => custom b (Unclosed '{')
-  Fail (B EOI _)         => custom b (Unclosed '{')
-  Fail err               => Fail err
+  Succ v (B ',' _ :: ys)  => succ $ rec n b (sv :< (y,v)) ys r
+  Succ v (B '}' _ :: ys)  => Succ (Rec n $ sv <>> [(y,v)]) ys
+  Succ v (y::_)           => unexpected y
+  Res.Succ _ _            => unclosed b '{'
+  Fail (B (Reason EOI) _) => unclosed b '{'
+  Fail err                => Fail err
 rec _ _ _ (B (Id _) _ ::x::xs) _ = expected x.bounds '='
 rec _ _ _ (x::xs) _ = custom x.bounds ExpectedId
 rec _ _ _ [] _ = eoi
 
 export
-parseValueE : String -> Either (ReadError Token Err) Value
+parseValueE : String -> Either (FileContext,PSErr) Value
 parseValueE str = case tokens str of
-  Left x   => Left (parseFailed Virtual $ pure x)
+  Left x   => Left $ fromBounded Virtual x
   Right ts => case value ts suffixAcc of
-    Fail err           => Left (parseFailed Virtual $ pure err)
+    Fail err           => Left $ fromBounded Virtual err
     Succ res []        => Right res
-    Succ res (x :: xs) => Left (parseFailed Virtual $ pure $ Unexpected <$> x)
+    Succ res (x :: xs) => Left (fromBounded Virtual $ Unexpected <$> x)
 
 export
 parseValue : String -> Maybe Value
