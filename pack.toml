@@ -24,5 +24,5 @@ ipkg   = "elab-pretty.ipkg"
 [custom.all.parser]
 type   = "git"
 url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
+commit = "latest:combinators"
 ipkg   = "parser.ipkg"
