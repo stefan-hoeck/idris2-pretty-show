@@ -113,8 +113,8 @@ derivePrettyVal = do
     | Nothing => fail "Invalid goal type: \{show tpe}"
   ti <- getInfo' nm
 
-  let impl :=  lambdaArg {a = Name} "x"
-           .=> iCase `(x) implicitFalse (pvClauses [ti.name] Nothing ti)
+  let impl := lam (lambdaArg {a = Name} "x") $
+              iCase `(x) implicitFalse (pvClauses [ti.name] Nothing ti)
 
   logMsg "derive.definitions" 1 $ show impl
   check $ var "MkPrettyVal" .$ impl
