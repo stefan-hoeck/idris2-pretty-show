@@ -265,7 +265,7 @@ go sx pos (x :: xs)    (SA r) =
        Succ t xs' @{prf} =>
          let pos2 := addCol (toNat prf) pos
           in go (sx :< bounded t pos pos2) pos2 xs' r
-       Stop start errEnd r => Left $ boundedErr pos start errEnd (Reason r)
+       Fail start errEnd r => Left $ boundedErr pos start errEnd (Reason r)
 go sx pos [] _ = Right (post [] sx)
 
 export
@@ -304,46 +304,46 @@ args : VName -> SnocList Value -> Rule False Value
 
 value,single,applied : Rule True Value
 
-applied (B (Lit y) _ :: xs) _        = Succ y xs
-applied (B (Id y) _ :: xs) _         = Succ (Con y []) xs
-applied (B '[' _ :: B ']' _ :: xs) _ = Succ (Lst []) xs
-applied (B '[' b :: xs) (SA r)       = succ $ list b [<] xs r
-applied (B '(' _ :: B ')' _ :: xs) _ = Succ (Con "()" []) xs
-applied (B '(' b :: xs) (SA r)       = succ $ tpl b [<] xs r
+applied (B (Lit y) _ :: xs) _        = Succ0 y xs
+applied (B (Id y) _ :: xs) _         = Succ0 (Con y []) xs
+applied (B '[' _ :: B ']' _ :: xs) _ = Succ0 (Lst []) xs
+applied (B '[' b :: xs) (SA r)       = succT $ list b [<] xs r
+applied (B '(' _ :: B ')' _ :: xs) _ = Succ0 (Con "()" []) xs
+applied (B '(' b :: xs) (SA r)       = succT $ tpl b [<] xs r
 applied (x::xs) _                    = unexpected x
 applied [] _                         = eoi
 
-single (B (Op "-") _ :: xs) (SA r)                = succ $ map Neg (applied xs r)
-single (B (Id y) _ :: B '{' _ :: B '}' _ :: xs) _ = Succ (Rec y []) xs
-single (B (Id y) _ :: B '{' b :: xs) (SA r)       = succ $ rec y b [<] xs r
-single (B (Id y) _ :: xs) (SA r)                  = succ $ args y [<] xs r
+single (B (Op "-") _ :: xs) (SA r)                = succT $ map Neg (applied xs r)
+single (B (Id y) _ :: B '{' _ :: B '}' _ :: xs) _ = Succ0 (Rec y []) xs
+single (B (Id y) _ :: B '{' b :: xs) (SA r)       = succT $ rec y b [<] xs r
+single (B (Id y) _ :: xs) (SA r)                  = succT $ args y [<] xs r
 single xs sa                                      = applied xs sa
 
 value xs sa = infx [<] xs sa
 
 args n sv xs sa@(SA r) = case applied xs sa of
-  Succ v xs' => weaken $ succ $ args n (sv :< v) xs' r
-  Fail _     => Succ (Con n $ sv <>> []) xs
+  Succ0 v xs' => succF $ args n (sv :< v) xs' r
+  Fail0 _     => Succ0 (Con n $ sv <>> []) xs
 
 list b sv xs sa@(SA r) = case value xs sa of
-  Succ v (B ',' _ :: ys)  => succ $ list b (sv :< v) ys r
-  Succ v (B ']' _ :: ys)  => Succ (Lst $ sv <>> [v]) ys
-  res                     => failInParen b '[' res
+  Succ0 v (B ',' _ :: ys)  => succT $ list b (sv :< v) ys r
+  Succ0 v (B ']' _ :: ys)  => Succ0 (Lst $ sv <>> [v]) ys
+  res                      => failInParen b '[' res
 
 tpl b sv xs sa@(SA r) = case value xs sa of
-  Succ v (B ',' _ :: ys)  => succ $ tpl b (sv :< v) ys r
-  Succ v (B ')' _ :: ys)  => Succ (toTpl $ sv <>> [v]) ys
-  res                     => failInParen b '(' res
+  Succ0 v (B ',' _ :: ys)  => succT $ tpl b (sv :< v) ys r
+  Succ0 v (B ')' _ :: ys)  => Succ0 (toTpl $ sv <>> [v]) ys
+  res                      => failInParen b '(' res
 
 infx sv xs sa@(SA r) = case single xs sa of
-  Succ v (B (Op n) _ :: ys) => succ $ infx (sv :< (n,v)) ys r
-  Succ v ys                 => Succ (toInfx [] sv v) ys
-  Fail err                  => Fail err
+  Succ0 v (B (Op n) _ :: ys) => succT $ infx (sv :< (n,v)) ys r
+  Succ0 v ys                 => Succ0 (toInfx [] sv v) ys
+  Fail0 err                  => Fail0 err
 
-rec n b sv (B (Id y) _ :: B '=' _ :: xs) (SA r) = case succ $ value xs r of
-  Res.Succ v (B ',' _ :: ys)  => succ $ rec n b (sv :< (y,v)) ys r
-  Succ v (B '}' _ :: ys)      => Succ (Rec n $ sv <>> [(y,v)]) ys
-  res                         => failInParen b '{' res
+rec n b sv (B (Id y) _ :: B '=' _ :: xs) (SA r) = case succT $ value xs r of
+  Succ0 v (B ',' _ :: ys) => succT $ rec n b (sv :< (y,v)) ys r
+  Succ0 v (B '}' _ :: ys) => Succ0 (Rec n $ sv <>> [(y,v)]) ys
+  res                     => failInParen b '{' res
 rec _ _ _ (B (Id _) _ ::x::xs) _ = expected x.bounds '='
 rec _ _ _ (x::xs) _ = custom x.bounds ExpectedId
 rec _ _ _ [] _ = eoi
@@ -353,9 +353,9 @@ parseValueE : String -> Either (FileContext,PSErr) Value
 parseValueE str = case tokens str of
   Left x   => Left $ fromBounded Virtual x
   Right ts => case value ts suffixAcc of
-    Fail err           => Left $ fromBounded Virtual err
-    Succ res []        => Right res
-    Succ res (x :: xs) => Left (fromBounded Virtual $ Unexpected <$> x)
+    Fail0 err           => Left $ fromBounded Virtual err
+    Succ0 res []        => Right res
+    Succ0 res (x :: xs) => Left (fromBounded Virtual $ Unexpected <$> x)
 
 export
 parseValue : String -> Maybe Value
