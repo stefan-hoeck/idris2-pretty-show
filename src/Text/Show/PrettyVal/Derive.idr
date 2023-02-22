@@ -7,6 +7,7 @@ import Text.Parse
 import Text.Show.PrettyVal
 import Text.Show.Value
 import public Derive.Show
+import Derive.Prelude
 
 %language ElabReflection
 
@@ -58,7 +59,7 @@ prettyValImplClaim impl p = implClaim impl (implType "PrettyVal" p)
 ||| Top-level definition of the `PrettyVal` implementation for the given data type.
 export
 prettyValImplDef : (fun, impl : Name) -> Decl
-prettyValImplDef f i = def i [var i .= var "MkPrettyVal" .$ var f]
+prettyValImplDef f i = def i [patClause (var i) (var "MkPrettyVal" `app` var f)]
 
 parameters (nms : List Name)
   arg : BoundArg 1 Explicit -> TTImp
@@ -85,7 +86,7 @@ parameters (nms : List Name)
   pvClauses fun ti = map clause ti.cons
     where
       lhs : TTImp -> TTImp
-      lhs bc = maybe bc ((.$ bc) . var) fun
+      lhs bc = maybe bc ((`app` bc) . var) fun
 
       clause : Con ti.arty ti.args -> Clause
       clause c = case all namedArg c.args of
@@ -117,7 +118,7 @@ derivePrettyVal = do
               iCase `(x) implicitFalse (pvClauses [ti.name] Nothing ti)
 
   logMsg "derive.definitions" 1 $ show impl
-  check $ var "MkPrettyVal" .$ impl
+  check $ var "MkPrettyVal" `app` impl
 
 ||| Generate declarations and implementations for `PrettyVal` for a given data type.
 export
