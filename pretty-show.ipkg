@@ -6,10 +6,9 @@ sourcedir  = "src"
 version    = 0.6.0
 depends    = elab-pretty
            , elab-util
-           , parser
+           , parser-show
 
 modules = Text.Show.Diff
         , Text.Show.Pretty
         , Text.Show.PrettyVal
         , Text.Show.PrettyVal.Derive
-        , Text.Show.Value
