@@ -158,7 +158,9 @@ PrettyVal nms p =
 
 %runElab derive "Text.Bounds.Bounded" [PrettyVal]
 
-%runElab derive "Text.ParseError.StopReason" [PrettyVal]
+%runElab derive "Text.ParseError.DigitType" [PrettyVal]
+
+%runElab derive "Text.ParseError.CharClass" [PrettyVal]
 
 %runElab derive "Text.FC.Origin" [PrettyVal]
 
