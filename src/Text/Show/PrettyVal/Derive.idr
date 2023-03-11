@@ -15,10 +15,13 @@ import Derive.Prelude
 --          Utilities
 --------------------------------------------------------------------------------
 
--- Displays an applied constructer in record syntax.
--- This is called, if all arguments have user-defined names.
+||| Displays an applied constructer in record syntax.
+||| This is called, if all arguments have user-defined names.
+||| Note: If the list of arguments is empty, this uses the
+|||       `Con` data constructor in agreement with `parseValue`.
 public export
 rec : String -> List (Value,String) -> Value
+rec con [] = Con (MkName con) []
 rec con ps = Rec (MkName con) $ map (\(v,n) => (MkName n, v)) ps
   where named : Value -> String -> (VName,Value)
         named v name = (MkName name, v)
