@@ -54,7 +54,7 @@ lex = map (map val) . tokens
 testLex : String -> List (String, List Token) -> IO Bool
 testLex s ps = do
   putStrLn ("Lexing " ++ s)
-  report $ runEq lex (map (map Right) ps)
+  report $ runEq lex (map (map $ Right . (++ [EOI])) ps)
 
 natTokens : List (String,List Token)
 natTokens = mapPairs (pure . Lit . Natural) nats
