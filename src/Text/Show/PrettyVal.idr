@@ -88,7 +88,7 @@ PrettyVal Char where
 
 public export
 PrettyVal String where
-  prettyVal = Str
+  prettyVal = Str . show
 
 public export
 PrettyVal a => PrettyVal (List a) where
