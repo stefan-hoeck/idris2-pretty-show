@@ -101,5 +101,5 @@ PrettyVal a => PrettyVal (Vect n a) where
 public export
 (PrettyVal a, PrettyVal b) => PrettyVal (a,b) where
   prettyVal (a,b) = case prettyVal b of
-                         Tuple v1 v2 vs => Tuple (prettyVal a) v1 (v2 :: vs)
-                         val            => Tuple (prettyVal a) val []
+    Tuple v1 v2 vs => Tuple (prettyVal a) v1 (v2 :: vs)
+    val            => Tuple (prettyVal a) val []

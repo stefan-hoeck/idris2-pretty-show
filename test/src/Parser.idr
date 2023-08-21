@@ -93,16 +93,17 @@ symbolTokens = mapPairs (pure . symb) symbols
 
 export
 lexTest : IO Bool
-lexTest = testAll [
-    testLex "nat literals" natTokens
-  , testLex "string literals" stringTokens
-  , testLex "char literals" charTokens
-  , testLex "float literals" doubleTokens
-  , testLex "spaces" spaceTokens
-  , testLex "identifiers" identTokens
-  , testLex "operators" opTokens
-  , testLex "symbols" symbolTokens
-  ]
+lexTest =
+  testAll
+    [ testLex "nat literals" natTokens
+    , testLex "string literals" stringTokens
+    , testLex "char literals" charTokens
+    , testLex "float literals" doubleTokens
+    , testLex "spaces" spaceTokens
+    , testLex "identifiers" identTokens
+    , testLex "operators" opTokens
+    , testLex "symbols" symbolTokens
+    ]
 
 --------------------------------------------------------------------------------
 --          Parsing
@@ -166,21 +167,22 @@ export
 recs2 : List (String,Value)
 recs2 =
   [| rec3
-     (List.take 20 primsOrCons)
-     (MkName <$> List.take 2 identOrOps)
-     (MkName <$> List.take 2 identOrOps)
-     (MkName <$> List.take 2 identOrOps)
-     (List.take 5 doubleCons)
+       (List.take 20 primsOrCons)
+       (MkName <$> List.take 2 identOrOps)
+       (MkName <$> List.take 2 identOrOps)
+       (MkName <$> List.take 2 identOrOps)
+       (List.take 5 doubleCons)
   |]
 
 export
 parseTest : IO Bool
-parseTest = testAll
-  [ testParse "primitives" prims
-  , testParse "negated" negated
-  , testParse "cons arity 1" singleCons
-  , testParse "cons arity 2" doubleCons
-  , testParse "empty records" emptyRecs
-  , testParse "records of arity 1" recs1
-  , testParse "records of arity 2" recs2
-  ]
+parseTest =
+  testAll
+    [ testParse "primitives" prims
+    , testParse "negated" negated
+    , testParse "cons arity 1" singleCons
+    , testParse "cons arity 2" doubleCons
+    , testParse "empty records" emptyRecs
+    , testParse "records of arity 1" recs1
+    , testParse "records of arity 2" recs2
+    ]

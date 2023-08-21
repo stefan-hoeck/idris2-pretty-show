@@ -23,8 +23,10 @@ public export
 rec : String -> List (Value,String) -> Value
 rec con [] = Con (MkName con) []
 rec con ps = Rec (MkName con) $ map (\(v,n) => (MkName n, v)) ps
-  where named : Value -> String -> (VName,Value)
-        named v name = (MkName name, v)
+
+  where
+    named : Value -> String -> (VName,Value)
+    named v name = (MkName name, v)
 
 -- Displays an applied constructer with unnamed arguments.
 public export
@@ -87,6 +89,7 @@ parameters (nms : List Name)
   export
   pvClauses : (fun : Maybe Name) -> TypeInfo -> List Clause
   pvClauses fun ti = map clause ti.cons
+
     where
       lhs : TTImp -> TTImp
       lhs bc = maybe bc ((`app` bc) . var) fun

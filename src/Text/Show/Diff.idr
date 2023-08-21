@@ -13,29 +13,32 @@ import public Text.Show.Pretty
 --------------------------------------------------------------------------------
 
 public export
-data ValueDiff = Con VName (List ValueDiff)
-               | Rec VName (List (VName, ValueDiff))
-               | Tuple ValueDiff ValueDiff (List ValueDiff)
-               | Lst (List ValueDiff)
-               | Same Value
-               | Diff Value Value
+data ValueDiff : Type where
+  Con    : VName -> List ValueDiff -> ValueDiff
+  Rec    : VName -> List (VName, ValueDiff) -> ValueDiff
+  Tuple  : ValueDiff -> ValueDiff -> List ValueDiff -> ValueDiff
+  Lst    : List ValueDiff -> ValueDiff
+  Same   : Value -> ValueDiff
+  Diff   : Value -> Value -> ValueDiff
 
 %runElab derive "ValueDiff" [Show,Eq,PrettyVal]
 
 public export
-data LineDiff = LineSame String
-              | LineRemoved String
-              | LineAdded String
+data LineDiff : Type where
+  LineSame    : String -> LineDiff
+  LineRemoved : String -> LineDiff
+  LineAdded   : String -> LineDiff
 
 %runElab derive "LineDiff" [Show,Eq,PrettyVal]
 
 public export
-data DocDiff = DocSame Nat String
-             | DocRemoved Nat String
-             | DocAdded Nat String
-             | DocOpen Nat String
-             | DocItem Nat String (List DocDiff)
-             | DocClose Nat String
+data DocDiff : Type where
+  DocSame    : Nat -> String -> DocDiff
+  DocRemoved : Nat -> String -> DocDiff
+  DocAdded   : Nat -> String -> DocDiff
+  DocOpen    : Nat -> String -> DocDiff
+  DocItem    : Nat -> String -> List DocDiff -> DocDiff
+  DocClose   : Nat -> String -> DocDiff
 
 %runElab derive "DocDiff" [Show,Eq,PrettyVal]
 
@@ -66,11 +69,13 @@ zipDiffP sx ((n1,x) :: xs) ((n2,y) :: ys) =
 zipDiffP _ _ _ = Nothing
 
 valueDiff x@(Con nx xs) y@(Con ny ys) =
-    if nx == ny then maybe (Diff x y) (Con ny) (zipDiff [<] xs ys)
-    else Diff x y
+    if nx == ny
+       then maybe (Diff x y) (Con ny) (zipDiff [<] xs ys)
+       else Diff x y
 valueDiff x@(Rec nx xs) y@(Rec ny ys) =
-    if nx == ny then maybe (Diff x y) (Rec ny) (zipDiffP [<] xs ys)
-    else Diff x y
+    if nx == ny
+       then maybe (Diff x y) (Rec ny) (zipDiffP [<] xs ys)
+       else Diff x y
 valueDiff x@(Lst xs) y@(Lst ys) = maybe (Diff x y) Lst (zipDiff [<] xs ys)
 valueDiff x@(Tuple x1 x2 xs) y@(Tuple y1 y2 ys) = case zipDiff [<] xs ys of
   Nothing => Diff x y
@@ -86,13 +91,14 @@ take f v = case v of
   Same x       => x
   Diff x y     => f x y
 
-  where ts : List ValueDiff -> List Value
-        ts []       = []
-        ts (h :: t) = take f h :: ts t
+  where
+    ts : List ValueDiff -> List Value
+    ts []       = []
+    ts (h :: t) = take f h :: ts t
 
-        tsP : List (a,ValueDiff) -> List (a,Value)
-        tsP []           = []
-        tsP ((a,h) :: t) = (a,take f h) :: tsP t
+    tsP : List (a,ValueDiff) -> List (a,Value)
+    tsP []           = []
+    tsP ((a,h) :: t) = (a,take f h) :: tsP t
 
 export
 takeLeft : ValueDiff -> Value
@@ -223,7 +229,9 @@ collapseOpen [] = []
 
 dropLeadingSep : List DocDiff -> List DocDiff
 dropLeadingSep (DocOpen oind bra :: DocItem ind pre xs :: ys) =
-  DocOpen oind bra :: DocItem (ind + length pre) "" (dropLeadingSep xs) :: dropLeadingSep ys
+     DocOpen oind bra
+  :: DocItem (ind + length pre) "" (dropLeadingSep xs)
+  :: dropLeadingSep ys
 dropLeadingSep (DocItem ind pre xs :: ys) =
   DocItem ind pre (dropLeadingSep xs) :: dropLeadingSep ys
 dropLeadingSep (x :: xs) = x :: dropLeadingSep xs
