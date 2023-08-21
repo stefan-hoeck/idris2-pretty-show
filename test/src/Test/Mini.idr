@@ -61,19 +61,24 @@ run :  Foldable t
     -> t i
     -> Result i o
 run f = concatMap run'
-  where run' : i -> Result i o
-        run' inp = case f inp of
-                        (Left x)  => MkResult [] [x]
-                        (Right x) => MkResult [x] []
+
+  where
+    run' : i -> Result i o
+    run' inp = case f inp of
+      Left x  => MkResult [] [x]
+      Right x => MkResult [x] []
 
 public export
 runEq : (Foldable t, Eq o) => (f : i -> o) -> t (i,o) -> Result i o
 runEq f = concatMap run'
-  where run' : (i,o) -> Result i o
-        run' (inp,exp) = let res = f inp
-                          in if exp == res
-                                then MkResult [MkSuccess inp exp] []
-                                else MkResult [] [MkFailure inp res exp]
+
+  where
+    run' : (i,o) -> Result i o
+    run' (inp,exp) =
+      let res := f inp
+       in if exp == res
+            then MkResult [MkSuccess inp exp] []
+            else MkResult [] [MkFailure inp res exp]
 
 --------------------------------------------------------------------------------
 --          ANSI Colorings and Reporting
@@ -100,15 +105,19 @@ report : PrettyVal i => PrettyVal o => Result i o -> IO Bool
 report (MkResult ok [])      =
   putStrLn (greenOk ++ show (length ok) ++ " tests run") $> True
 
-report (MkResult ok (f::fs)) =
-  do putStrLn (redFailed ++ summary)
-     putStrLn "First failure"
-     dumpIO f
-     pure False
-  where summary : String
-        summary = unlines [ show (length ok + length fs + 1) ++ " tests run"
-                          , spaces ++ show (length fs + 1) ++ " tests failed"
-                          ]
+report (MkResult ok (f::fs)) = do
+  putStrLn (redFailed ++ summary)
+  putStrLn "First failure"
+  dumpIO f
+  pure False
+
+  where
+    summary : String
+    summary =
+      unlines
+        [ show (length ok + length fs + 1) ++ " tests run"
+        , spaces ++ show (length fs + 1) ++ " tests failed"
+        ]
 
 export
 testAll : List (IO Bool) -> IO Bool
