@@ -218,6 +218,8 @@ PrettyVal nms p =
 
 %runElab derive "Visibility" [PrettyVal]
 
+%runElab derive "WithDefault" [PrettyVal]
+
 %runElab derive "BindMode" [PrettyVal]
 
 %runElab derive "UseSide" [PrettyVal]
