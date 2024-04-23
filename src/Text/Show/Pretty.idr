@@ -1,6 +1,7 @@
 module Text.Show.Pretty
 
 import Data.List
+import Data.List1
 import Text.PrettyPrint.Bernardy
 
 import public Text.Show.Value
@@ -12,6 +13,35 @@ import public Text.Show.PrettyVal.Derive
 --------------------------------------------------------------------------------
 --          Utilities
 --------------------------------------------------------------------------------
+
+dropTrailingZeros : SnocList Char -> String
+dropTrailingZeros [<]        = "0"
+dropTrailingZeros [<'.']     = "0"
+dropTrailingZeros (i :< '.') = fastPack (i <>> [])
+dropTrailingZeros (i :< '0') = dropTrailingZeros i
+dropTrailingZeros sc         = fastPack (sc <>> [])
+
+roundUp : SnocList Char -> String
+roundUp [<]        = "1"
+roundUp [<'.']     = "1"
+roundUp (i :< '.') = show $ cast {to = Integer} (fastPack (i <>> [])) + 1
+roundUp (i :< '9') = roundUp i
+roundUp (i :< c)   = fastPack (i <>> [chr $ ord c + 1])
+
+||| Prints a floating point number with at most the given number
+||| of digits after the dot.
+export
+printDouble : (precision : Nat) -> Double -> String
+printDouble prec v =
+  case forget $ split ('.' ==) (fastUnpack $ show v) of
+    [x,y] =>
+      case splitAt prec y of
+        (pre,[])   => dropTrailingZeros ([<] <>< (x ++ '.' :: pre))
+        (pre,c::_) =>
+          if c <= '4'
+             then dropTrailingZeros ([<] <>< (x ++ '.' :: pre))
+             else roundUp ([<] <>< (x ++ '.' :: pre))
+    _     => show v
 
 -- Don't put parenthesis around constructors in infix chains
 isInfixAtom : Value -> Bool
