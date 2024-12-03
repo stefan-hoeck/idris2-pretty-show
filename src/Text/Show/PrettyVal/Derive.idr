@@ -212,6 +212,8 @@ PrettyVal nms p =
 
 %runElab derive "PiInfo" [PrettyVal]
 
+%runElab derive "WithFC" [PrettyVal]
+
 %runElab derive "LazyReason" [PrettyVal]
 
 %runElab derive "TotalReq" [PrettyVal]
