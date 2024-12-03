@@ -196,6 +196,8 @@ PrettyVal nms p =
 
 %runElab derive "Language.Reflection.TT.FC" [PrettyVal]
 
+%runElab derive "WithFC" [PrettyVal]
+
 %runElab derive "NameType" [PrettyVal]
 
 %runElab derive "PrimType" [PrettyVal]
@@ -211,8 +213,6 @@ PrettyVal nms p =
 %runElab derive "Count" [PrettyVal]
 
 %runElab derive "PiInfo" [PrettyVal]
-
-%runElab derive "WithFC" [PrettyVal]
 
 %runElab derive "LazyReason" [PrettyVal]
 
@@ -245,4 +245,5 @@ PrettyVal nms p =
   , "Record"
   , "Clause"
   , "Decl"
+  , "IClaimData"
   ] [PrettyVal]
