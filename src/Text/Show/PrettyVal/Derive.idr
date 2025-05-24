@@ -69,7 +69,7 @@ prettyValImplDef f i = def i [patClause (var i) (var "MkPrettyVal" `app` var f)]
 parameters (nms : List Name)
   arg : BoundArg 1 Explicit -> TTImp
   arg (BA (MkArg M0 _ _ _) _   _) = `(Chr "_")
-  arg (BA (MkArg _  _ _ t) [x] _) = assertIfRec nms t `(prettyVal ~(varStr x))
+  arg (BA (MkArg _  _ _ t) [x] _) = assertIfRec nms t `(prettyVal ~(var x))
 
   rhs : Name -> SnocList TTImp -> TTImp
   rhs n st = `(other ~(n.namePrim) ~(listOf st))
@@ -80,7 +80,7 @@ parameters (nms : List Name)
      in case a.count of
        M0 => `(MkPair ~(nm) (Chr "_"))
        _  =>
-         let pv := assertIfRec nms a.type `(prettyVal ~(varStr x))
+         let pv := assertIfRec nms a.type `(prettyVal ~(var x))
           in `(MkPair ~(pv) ~(nm))
 
   nrhs : Name -> SnocList TTImp -> TTImp
