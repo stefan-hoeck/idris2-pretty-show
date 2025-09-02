@@ -172,6 +172,8 @@ PrettyVal nms p =
 
 %runElab derive "Text.FC.FileContext" [PrettyVal]
 
+%runElab derive "Text.ParseError.InnerError" [PrettyVal]
+
 %runElab derive "Text.ParseError.ParseError" [PrettyVal]
 
 -- System
