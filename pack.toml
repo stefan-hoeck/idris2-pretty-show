@@ -9,26 +9,9 @@ type   = "local"
 path   = "test"
 ipkg   = "test.ipkg"
 
-[custom.all.elab-util]
-type   = "git"
-url    = "https://github.com/stefan-hoeck/idris2-elab-util"
-commit = "latest:main"
-ipkg   = "elab-util.ipkg"
-
-[custom.all.elab-pretty]
-type   = "git"
-url    = "https://github.com/stefan-hoeck/idris2-elab-util"
-commit = "latest:main"
-ipkg   = "elab-pretty.ipkg"
-
-[custom.all.parser]
-type   = "git"
-url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
-ipkg   = "parser.ipkg"
-
-[custom.all.parser-show]
-type   = "git"
-url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
-ipkg   = "show/parser-show.ipkg"
+[custom.all]
+elab-util.commit   = "latest:main"
+elab-pretty.commit = "latest:main"
+ilex-core.commit   = "latest:byte_context"
+parser.commit      = "latest:main"
+parser-show.commit = "latest:main"

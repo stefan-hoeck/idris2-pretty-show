@@ -174,7 +174,7 @@ PrettyVal nms p =
 
 %runElab derive "Text.ParseError.InnerError" [PrettyVal]
 
-%runElab derive "Text.ParseError.ParseError" [PrettyVal]
+%runElab derive "Text.ParseError.FCErr" [PrettyVal]
 
 -- System
 
