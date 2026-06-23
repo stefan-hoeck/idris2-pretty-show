@@ -12,6 +12,6 @@ ipkg   = "test.ipkg"
 [custom.all]
 elab-util.commit   = "latest:main"
 elab-pretty.commit = "latest:main"
-ilex-core.commit   = "latest:byte_context"
+ilex-core.commit   = "latest:main"
 parser.commit      = "latest:main"
 parser-show.commit = "latest:main"
